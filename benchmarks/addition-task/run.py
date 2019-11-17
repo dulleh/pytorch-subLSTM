@@ -89,6 +89,8 @@ parser.add_argument('--cuda', action='store_true',
 # Print options
 parser.add_argument('--verbose', action='store_true',
     help='print the progress of training to std output.')
+parser.add_argument('--timing', action='store_true',
+    help='print average training times')
 
 args = parser.parse_args()
 
@@ -208,6 +210,13 @@ criterion = nn.MSELoss()
 epochs, log_interval = args.epochs, args.log_interval
 loss_trace, best_loss = [], np.inf
 save_path = args.save + '/{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
+total_time = 0
+
+
+if args.cuda and not torch.cuda.is_available():
+    print('\n\tWARNING: CUDA requested but not available.\n')
+print("cuda is available: {}".format(torch.cuda.is_available()))
+print("cudnn enabled: {}".format(torch.backends.cudnn.enabled))
 
 if not os.path.exists(save_path):
     os.makedirs(save_path)
@@ -253,13 +262,16 @@ try:
         # Check validation loss
         val_loss = test(model, validation_data, criterion, device)
 
+        this_epoch_time = time.time() - start_time
+        total_time += this_epoch_time
+
         if args.verbose:
             print('epoch {} finished \
-                \n\ttotal time {} \
+                \n\ttime for this epoch {} \
                 \n\ttraining_loss = {:5.4f} \
                 \n\tvalidation_loss = {:5.4f}'.format(
                     e + 1,
-                    time.time() - start_time,
+                    this_epoch_time,
                     np.sum(epoch_trace) / len(epoch_trace),
                     val_loss))
 
@@ -272,6 +284,9 @@ try:
                     'loss': val_loss
                 }, f)
             best_loss = val_loss
+
+    if args.timing:
+      print('total time to train {}'.format(total_time))
 
 except KeyboardInterrupt:
     if args.verbose:
