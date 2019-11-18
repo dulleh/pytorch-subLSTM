@@ -92,6 +92,10 @@ parser.add_argument('--verbose', action='store_true',
 parser.add_argument('--timing', action='store_true',
     help='print average training times')
 
+# Testing
+parser.add_argument('--test', action='store_true',
+    help='test the loss trace against the relevant cached example')
+
 args = parser.parse_args()
 
 ########################################################################################
@@ -209,7 +213,8 @@ criterion = nn.MSELoss()
 
 epochs, log_interval = args.epochs, args.log_interval
 loss_trace, best_loss = [], np.inf
-save_path = args.save + '/{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
+save_directory_name = '{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
+save_path = args.save + '/' + save_directory_name
 total_time = 0
 
 
@@ -300,6 +305,22 @@ with open(save_path + '/trace.csv', 'w') as f:
 ########################################################################################
 # VALIDATE
 ########################################################################################
+
+if args.test:
+    try:
+        with open('cached-results/' + save_directory_name + '/trace.csv', 'r') as cached, \
+                open(save_path + '/trace.csv', 'r') as output:
+            cached_trace = cached.readlines()
+            output_trace = output.readlines()
+            if cached_trace != output_trace:
+                print("Trace != cached trace.")
+            else:
+                print("Trace is consistent with cached trace.")
+    except IOError:
+        print('Cached trace.csv not found.', sys.exc_info()[0])
+        raise
+
+
 
 with open(save_path + '/model.pt', 'rb') as f:
     model.load_state_dict(torch.load(f)['model_state'])
