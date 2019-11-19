@@ -164,13 +164,22 @@ test_data = BatchGenerator(test_size, test_size, min_arg, max_arg)
 
 input_size, hidden_size, responses = 2, args.nhid, 1
 
+example_rnn_input, example_rnn_output = None, None
+# Just run once to get the first element as the example
+for i, data in enumerate(training_data):
+    example_input, example_labels = data
+    example_rnn_input, example_rnn_output = example_input.to(device), example_labels.to(device)
+    break
+
 model = init_model(
     model_type=args.model,
     n_layers=args.nlayers, hidden_size=args.nhid,
     input_size=input_size, output_size=responses, class_task=False,
     device=device,
     dropout=args.dropout,
-    script=args.script
+    script=args.script,
+    example_input=example_rnn_input,
+    example_output=example_rnn_output
 )
 # model = nn.Sequential(
 #     SubLSTM(input_size=2, hidden_size=50,num_layers=1, bias=True, batch_first=True),

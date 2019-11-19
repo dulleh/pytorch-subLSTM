@@ -6,7 +6,7 @@ import torch.jit as jit
 
 from subLSTM.basic.nn import SubLSTM as VanillaSubLSTM
 from subLSTM.torchscript.rnn import SubLSTM as ScriptedSubLSTM
-
+import subLSTM.torchscript.rnn as subLSTMUtils
 
 class RNNClassifier(nn.Module):
     def __init__(self, rnn, rnn_output_size, n_classes):
@@ -48,16 +48,25 @@ class RNNRegressor(nn.Module):
 
 
 def init_model(model_type, hidden_size, input_size, n_layers,
-                output_size, dropout, device, class_task=True, script=False):
+               output_size, dropout, device, class_task=True, script=False,
+               example_input=None, example_output=None):
     if model_type == 'subLSTM':
         if script:
+            """
             rnn = jit.script(ScriptedSubLSTM(input_size=input_size,
                                              hidden_size=hidden_size,
                                              num_layers=n_layers,
                                              fixed_forget=False,
                                              batch_first=True,
                                              dropout=dropout))
-
+            """
+            model_to_trace = ScriptedSubLSTM(input_size=input_size,
+                                             hidden_size=hidden_size,
+                                             num_layers=n_layers,
+                                             fixed_forget=False,
+                                             batch_first=True,
+                                             dropout=dropout)
+            rnn = jit.trace(model_to_trace, (example_input, subLSTMUtils.init_states(example_output, n_layers, hidden_size)))
         else: 
             rnn = VanillaSubLSTM(input_size=input_size,
                                  hidden_size=hidden_size,
