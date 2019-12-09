@@ -4,7 +4,6 @@ from torch.utils.cpp_extension import load
 
 def sublstm(input, hidden, input_layer, recurrent_layer):
     d_sigmoid_cpp = load(name="d_sigmoid", sources=["/content/pytorch-subLSTM/src/subLSTM/basic/sublstm.cpp"])
-    print("im here")
     # functionally it makes no sense to do this, i'm just testing the binding
     d_sigmoid_cpp.d_sigmoid(input_layer(input))
 
