@@ -1,8 +1,12 @@
 import torch
 import torch.nn.functional as F
-
+from torch.utils.cpp_extension import load
 
 def sublstm(input, hidden, input_layer, recurrent_layer):
+    sublstm_cpp = load(name="sublstm_cpp", sources=["sublstm.cpp"], verbose=True)
+    # functionally it makes no sense to do this, i'm just testing the binding
+    sublstm_cpp.d_sigmoid(input_layer(input))
+
     h_tm1, c_tm1 = hidden
     proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))
 
