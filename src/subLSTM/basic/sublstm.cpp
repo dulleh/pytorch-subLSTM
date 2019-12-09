@@ -13,5 +13,5 @@ torch::Tensor d_sigmoid(torch::Tensor z) {
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("d_sigmoid", &lltm_forward, "sigmoid differential");
+  m.def("d_sigmoid", &d_sigmoid, "sigmoid differential");
 }
