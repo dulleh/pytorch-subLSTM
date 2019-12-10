@@ -88,6 +88,7 @@ std::vector<torch::Tensor> forward_cuda(
         new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
         input_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
         output_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+        forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
         candidate_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
   }));
 
