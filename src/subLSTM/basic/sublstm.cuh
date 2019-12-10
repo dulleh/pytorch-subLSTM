@@ -22,3 +22,10 @@ __global__ void forward_cuda_kernel(
     torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> output_gate,
     torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate,
     torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> candidate_cell);
+
+std::vector<torch::Tensor> forward_cuda(
+    torch::Tensor input,
+    torch::Tensor weights,
+    torch::Tensor bias,
+    torch::Tensor old_h,
+    torch::Tensor old_cell);
