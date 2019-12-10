@@ -1,16 +1,23 @@
 /**
   * This is all from https://pytorch.org/tutorials/advanced/cpp_extension.html
+  * and taking guidance from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm_cuda.cpp
   */
 //Includes ATen (tensor library), pybind11, and headers to manage the interactions between the two.
 #include <torch/extension.h>
 #include <iostream>
-#include "sublstm.cuh"
 //namespace py = pybind11;
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
+std::vector<torch::Tensor> forward_cuda(
+    torch::Tensor input,
+    torch::Tensor weights,
+    torch::Tensor bias,
+    torch::Tensor old_h,
+    torch::Tensor old_cell);
+	
 std::vector<torch::Tensor> forward(
     torch::Tensor input,
     torch::Tensor weights,
