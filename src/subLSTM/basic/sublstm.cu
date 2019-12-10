@@ -2,7 +2,6 @@
   * This is all from https://pytorch.org/tutorials/advanced/cpp_extension.html
   * Taking cues from  	https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm_cuda_kernel.cu
   */
-//#include "sublstm.cuh"
 
 #include <torch/extension.h>
 #include <cuda.h>
