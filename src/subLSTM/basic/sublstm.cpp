@@ -1,13 +1,11 @@
 /**
   * This is all from https://pytorch.org/tutorials/advanced/cpp_extension.html
   */
-
 //Includes ATen (tensor library), pybind11, and headers to manage the interactions between the two.
 #include <torch/extension.h>
-
-//namespace py = pybind11;
-
 #include <iostream>
+#include "sublstm.cuh"
+//namespace py = pybind11;
 
 // CUDA forward declarations
 std::vector<torch::Tensor> forward_cuda(

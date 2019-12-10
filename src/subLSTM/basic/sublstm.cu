@@ -1,13 +1,7 @@
 /**
   * This is all from https://pytorch.org/tutorials/advanced/cpp_extension.html
   */
-
-#include <torch/extension.h>
-
-#include <cuda.h>
-#include <cuda_runtime.h>
-
-#include <vector>
+#include "sublstm.cuh"
 
 template <typename scalar_t>
 __device__ __forceinline__ scalar_t sigmoid(scalar_t z) {
