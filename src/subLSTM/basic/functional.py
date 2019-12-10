@@ -2,8 +2,13 @@ import torch
 import torch.nn.functional as F
 from torch.utils.cpp_extension import load
 
+## TODO: Remove
+import os
+
+
 def sublstm(input, hidden, input_layer, recurrent_layer):
-    d_sigmoid_cpp = load(name="d_sigmoid", sources=["/content/pytorch-subLSTM/src/subLSTM/basic/sublstm.cpp"])
+    print("The current working directory is", os.getcwd())
+    d_sigmoid_cpp = load(name="d_sigmoid", sources=["/basic/sublstm.cpp"])
     # functionally it makes no sense to do this, i'm just testing the binding
     d_sigmoid_cpp.d_sigmoid(input_layer(input))
 
