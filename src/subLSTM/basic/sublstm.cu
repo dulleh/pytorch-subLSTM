@@ -25,8 +25,8 @@ namespace {
 	template <typename scalar_t>
 	__global__ void forward_cuda_kernel(
 		//TODO: I changed this 3->4 because we needed a forget gate?
-		const torch::PackedTensorAccessor<scalar_t,4,torch::RestrictPtrTraits> gates,
-		const torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits> old_cell,
+		const torch::PackedTensorAccessor<scalar_t,4,torch::RestrictPtrTraits,size_t> gates,
+		const torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> old_cell,
 		torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> new_h,
 		torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> new_cell,
 		torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> input_gate,
