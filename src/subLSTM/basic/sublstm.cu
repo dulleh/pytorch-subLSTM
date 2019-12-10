@@ -82,7 +82,7 @@ std::vector<torch::Tensor> forward_cuda(
 
   AT_DISPATCH_FLOATING_TYPES(gates.type(), "sublstm_forward_cuda", ([&] {
     forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
-        gates.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
+        gates.packed_accessor32<scalar_t,4,torch::RestrictPtrTraits>(),
         old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
         new_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
         new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
