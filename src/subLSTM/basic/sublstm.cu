@@ -58,11 +58,12 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_h,
     torch::Tensor old_cell) {
   auto X = torch::cat({old_h, input}, /*dim=*/1);
-  auto gates = torch::addmm(bias, X, weights.transpose(0, 1));
+  auto gate_weights = torch::addmm(bias, X, weights.transpose(0, 1));
 
   const auto batch_size = old_cell.size(0);
   const auto state_size = old_cell.size(1);
 
+  auto gates = gate_weights.reshape({batch_size, 3, state_size});
   auto new_h = torch::zeros_like(old_cell);
   auto new_cell = torch::zeros_like(old_cell);
   auto input_gate = torch::zeros_like(old_cell);
@@ -80,7 +81,7 @@ std::vector<torch::Tensor> forward_cuda(
   const int threads = 1024;
   const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 
-  AT_DISPATCH_FLOATING_TYPES(gates.type(), "sublstm_forward_cuda", ([&] {
+  AT_DISPATCH_FLOATING_TYPES(gates.type(), "forward_cuda", ([&] {
     forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
         gates.packed_accessor<scalar_t,4,torch::RestrictPtrTraits,size_t>(),
         old_cell.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>(),

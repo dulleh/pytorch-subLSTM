@@ -9,7 +9,7 @@ def sublstm(input, hidden, input_layer, recurrent_layer):
     sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
     forward_cpp = load(name="forward", sources=[sublstm_cpp_path, sublstm_cu_path])
     # Perform forward pass
-    forward_cpp.forward(input_layer(input))
+    # forward_cpp.forward(input_layer(input))
 
     h_tm1, c_tm1 = hidden
     proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))
