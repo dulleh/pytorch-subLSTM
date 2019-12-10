@@ -6,7 +6,8 @@ from torch.utils.cpp_extension import load
 def sublstm(input, hidden, input_layer, recurrent_layer):
     path_to_this = os.path.abspath(os.path.dirname(__file__))
     sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-    d_sigmoid_cpp = load(name="d_sigmoid", sources=[sublstm_cpp_path])
+    sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
+    d_sigmoid_cpp = load(name="d_sigmoid", sources=[sublstm_cpp_path, sublstm_cu_path])
     # functionally it makes no sense to do this, i'm just testing the binding
     d_sigmoid_cpp.d_sigmoid(input_layer(input))
 
