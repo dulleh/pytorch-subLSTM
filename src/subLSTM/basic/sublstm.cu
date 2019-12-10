@@ -24,7 +24,6 @@ namespace {
 
 	template <typename scalar_t>
 	__global__ void forward_cuda_kernel(
-		//TODO: I changed this 3->4 because we needed a forget gate?
 		const torch::PackedTensorAccessor<scalar_t,3,torch::RestrictPtrTraits,size_t> gates,
 		const torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> old_cell,
 		torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> new_h,
@@ -44,7 +43,7 @@ namespace {
 		candidate_cell[n][c] = sigmoid(gates[n][2][c]);
 		forget_gate[n][c] = sigmoid(gates[n][3][c]);
 		new_cell[n][c] =
-			old_cell[n][c] * forget_gate + candidate_cell[n][c] - input_gate[n][c];
+			(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
 		new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
 	  }
 	}
