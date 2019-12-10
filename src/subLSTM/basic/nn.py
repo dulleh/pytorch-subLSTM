@@ -7,9 +7,62 @@ from torch.nn.modules.activation import Sigmoid
 from torch.nn.modules.rnn import RNNCellBase
 # from torch.nn.modules.rnn import PackedSequence
 # from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as pad
-
+from torch.autograd import Function
 from .functional import sublstm, fsublstm
 
+### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
+### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
+class SubLSTMFunction(Function):
+
+	## Need to see what @staticmethod keyword does..
+	## and where to move the path stuff if wanting to only do it once
+	@staticmethod
+	def forward(input, weights, bias, old_h, old_cell):
+		# Load/Compile the c++/cuda files
+		path_to_this = os.path.abspath(os.path.dirname(__file__))
+		sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
+		sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
+		forward_cpp = load(name="forward", sources=[sublstm_cpp_path, sublstm_cu_path])
+		# Perform forward pass
+		outputs = forward_cpp.forward(input, weights, bias, old_h, old_cell)
+		new_h, new_cell = outputs[:2]
+        variables = outputs[1:] + [weights]
+        ctx.save_for_backward(*variables)
+
+        return new_h, new_cell
+    
+	@staticmethod
+    def backward(ctx, grad_h, grad_cell):
+        #outputs = lltm_cuda.backward(
+        #    grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
+		# d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
+        #return d_input, d_weights, d_bias, d_old_h, d_old_cell
+		
+		## calculate backward here explicitly (in python)
+		
+
+
+class SubLSTMCellCuda(nn.Module):
+	def __init__(self, input_size, state_size, bias=True):
+        super(LLTM, self).__init__()
+		self.input_size = input_features
+        self.state_size = state_size
+        self.weights = nn.Parameter(
+            torch.Tensor(4 * state_size, input_size + state_size))
+        self.bias = nn.Parameter(torch.Tensor(1, 4 * state_size)) if bias else None
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for module in self.children():
+            try:
+                module.reset_parameters()
+            except AttributeError:
+                pass
+
+    def forward(self, input, state):
+        return SubLSTMFunction.forward(input, self.weights, self.bias, *state)
+		
+	// def backward?
 
 class SubLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True):
