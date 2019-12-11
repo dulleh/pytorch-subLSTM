@@ -33,6 +33,7 @@ class SubLSTMFunction(Function):
     
 	@staticmethod
     def backward(ctx, grad_h, grad_cell):
+		print("backward"
         #outputs = lltm_cuda.backward(
         #    grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
 		# d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
