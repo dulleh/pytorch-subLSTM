@@ -65,6 +65,11 @@ class SubLSTMCudaCell(nn.Module):
                 pass
 
     def forward(self, input, state):
+        print('input_size: {}'.format(input.size()))
+        print('weights_size: {}'.format(self.weights.size()))
+        if self.bias is not None:
+            print('weights_size: {}'.format(self.bias.size()))
+        print('*state {}'.format(*state))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
     # def backward?
