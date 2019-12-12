@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(description='Addition task')
 
 # Model parameters
 parser.add_argument('--model', type=str, default='subLSTM',
-    help='RNN model to use. One of subLSTM|fix-subLSTM|LSTM|GRU')
+    help='RNN model to use. One of subLSTM|fix-subLSTM|LSTM|GRU|subLSTMCuda')
 parser.add_argument('--nlayers', type=int, default=1,
     help='number of layers')
 parser.add_argument('--nhid', type=int, default=50,

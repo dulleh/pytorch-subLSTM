@@ -7,7 +7,6 @@ import torch.jit as jit
 from subLSTM.basic.nn import SubLSTM as VanillaSubLSTM
 from subLSTM.torchscript.rnn import SubLSTM as ScriptedSubLSTM
 
-
 class RNNClassifier(nn.Module):
     def __init__(self, rnn, rnn_output_size, n_classes):
         super(RNNClassifier, self).__init__()
@@ -62,9 +61,28 @@ def init_model(model_type, hidden_size, input_size, n_layers,
             rnn = VanillaSubLSTM(input_size=input_size,
                                  hidden_size=hidden_size,
                                  num_layers=n_layers,
-                                 fixed_forget=False,
+                                 cell_type='vanilla',
                                  batch_first=True,
                                  dropout=dropout)
+
+    elif model_type == 'subLSTMCuda':
+        """
+        Not implemented yet, so script parameter is entirely ignored
+        if script:
+            rnn = jit.script(ScriptedSubLSTM(input_size=input_size,
+                                 hidden_size=hidden_size,
+                                 num_layers=n_layers,
+                                 cell_type='cuda',
+                                 batch_first=True,
+                                 dropout=dropout))
+        else:
+        """
+        rnn = VanillaSubLSTM(input_size=input_size,
+                             hidden_size=hidden_size,
+                             num_layers=n_layers,
+                             cell_type='cuda',
+                             batch_first=True,
+                             dropout=dropout)
 
     elif model_type == 'fix-subLSTM':
         if script:
@@ -74,12 +92,11 @@ def init_model(model_type, hidden_size, input_size, n_layers,
                                              fixed_forget=True,
                                              batch_first=True,
                                              dropout=dropout))
-
-        else: 
+        else:
             rnn = VanillaSubLSTM(input_size=input_size,
                                  hidden_size=hidden_size,
                                  num_layers=n_layers,
-                                 fixed_forget=True,
+                                 cell_type='fixed_forget',
                                  batch_first=True,
                                  dropout=dropout)
 

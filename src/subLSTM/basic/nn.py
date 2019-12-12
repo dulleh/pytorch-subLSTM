@@ -42,9 +42,9 @@ class SubLSTMFunction(Function):
         ## calculate backward here explicitly (in python)
 
 
-class SubLSTMCellCuda(nn.Module):
+class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
-        super(SubLSTMCellCuda, self).__init__()
+        super(SubLSTMCudaCell, self).__init__()
         self.input_size = input_size
         self.state_size = state_size
         self.weights = nn.Parameter(
@@ -130,7 +130,7 @@ class fixSubLSTMCell(nn.Module):
 # noinspection PyShadowingBuiltins,PyPep8Naming
 class SubLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True,
-                    fixed_forget=False, batch_first=False, dropout=0.0):
+                    cell_type='vanilla', batch_first=False, dropout=0.0):
 
         super(SubLSTM, self).__init__()
 
@@ -150,7 +150,14 @@ class SubLSTM(nn.Module):
 
         # Use for bidirectional later
         suffix = ''
-        layer_type = SubLSTMCell if not fixed_forget else fixSubLSTMCell
+        if cell_type == 'fixed_forget':
+            layer_type = fixSubLSTMCell
+        elif cell_type == 'cuda':
+            layer_type = SubLSTMCudaCell
+        elif cell_type == 'vanilla':
+            layer_type = SubLSTMCell
+        else:
+            raise Exception('cell_type must one of \'vanilla\', \'fixed_forget\', or \'cuda\'. Recieved: {}'.format(cell_type))
 
         for layer_num in range(num_layers):
 
