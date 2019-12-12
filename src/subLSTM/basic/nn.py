@@ -69,7 +69,8 @@ class SubLSTMCudaCell(nn.Module):
         print('weights_size: {}'.format(self.weights.size()))
         if self.bias is not None:
             print('weights_size: {}'.format(self.bias.size()))
-        print('state_size {}'.format(state.size()))
+        for i in state:
+            print('state[{}]_size {}'.format(state.index(i), i.size()))
         print('state {}'.format(state))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
