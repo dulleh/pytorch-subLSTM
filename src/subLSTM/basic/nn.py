@@ -68,7 +68,7 @@ class SubLSTMCudaCell(nn.Module):
         print('input_size: {}'.format(input.size()))
         print('weights_size: {}'.format(self.weights.size()))
         if self.bias is not None:
-            print('weights_size: {}'.format(self.bias.size()))
+            print('bias_size: {}'.format(self.bias.size()))
         for i in state:
             print('state[{}]_size {}'.format(state.index(i), i.size()))
         print('state {}'.format(state))
