@@ -1,7 +1,5 @@
-import os
 import torch
 import torch.nn.functional as F
-from torch.utils.cpp_extension import load
 
 def sublstm(input, hidden, input_layer, recurrent_layer):
     h_tm1, c_tm1 = hidden
