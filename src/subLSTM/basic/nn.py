@@ -25,7 +25,12 @@ class SubLSTMFunction(Function):
         sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
         forward_cpp = load(name="forward", sources=[sublstm_cpp_path, sublstm_cu_path])
         # Perform forward pass
-        outputs = forward_cpp.forward(input, weights, bias, old_h, old_cell)
+        ## TODO: look into .contiguous and how to use it less
+        outputs = forward_cpp.forward(input.contiguous(),
+                                      weights.contiguous(),
+                                      bias.contiguous(),
+                                      old_h.contiguous(),
+                                      old_cell.contiguous())
         new_h, new_cell = outputs[:2]
         variables = outputs[1:] + [weights]
         ctx.save_for_backward(*variables)
