@@ -56,6 +56,8 @@ class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
         super(SubLSTMCudaCell, self).__init__()
         self.input_size = input_size
+        print("param: input_size: {}".format(input_size))
+        print("param: state_size: {}".format(state_size))
         self.state_size = state_size
         self.weights = nn.Parameter(
             torch.Tensor(4 * state_size, input_size + state_size))
@@ -76,7 +78,6 @@ class SubLSTMCudaCell(nn.Module):
             print('bias_size: {}'.format(self.bias.size()))
         for i, st in enumerate(state):
             print('state[{}]_size {}'.format(i, st.size()))
-        print('state {}'.format(state))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
     # def backward?
