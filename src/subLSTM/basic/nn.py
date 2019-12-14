@@ -60,8 +60,8 @@ class SubLSTMCudaCell(nn.Module):
         print("param: state_size: {}".format(state_size))
         self.state_size = state_size
         self.weights = nn.Parameter(
-            torch.Tensor(4 * state_size, input_size + state_size))
-        self.bias = nn.Parameter(torch.Tensor(1, 4 * state_size)) if bias else None
+            torch.Tensor(3 * state_size, input_size + state_size))
+        self.bias = nn.Parameter(torch.Tensor(1, 3 * state_size)) if bias else None
         self.reset_parameters()
 
     def reset_parameters(self):
