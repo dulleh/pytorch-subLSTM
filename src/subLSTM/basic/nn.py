@@ -15,6 +15,11 @@ from torch.utils.cpp_extension import load
 ### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
+    # Remember that old_h is the output from the previous cell i.e. h_(t-1)
+    # Likewise, old_cell is C_(t-1). Both of these get updated every time step
+    # The parameter weights, however, stays the same until it is updated in the
+    # backwards pass. It contains 4 gates: input_gate, output_gate, 
+    #                                      forget_gate
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
         ## Need to see what @staticmethod keyword does..

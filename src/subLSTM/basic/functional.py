@@ -3,6 +3,7 @@ import torch.nn.functional as F
 
 def sublstm(input, hidden, input_layer, recurrent_layer):
     h_tm1, c_tm1 = hidden
+    print("hidden.size: {}".format(hidden.size()))
     proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))
 
     in_gate, out_gate, z_t, f_gate = proj_input.chunk(4, 1)
