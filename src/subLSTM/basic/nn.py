@@ -31,7 +31,7 @@ class SubLSTMFunction(Function):
         bias.contiguous()
         old_h.contiguous()
         old_cell.contiguous()                                      
-        outputs = forward_cpp.forward(input.contiguous(),
+        outputs = forward_cpp.forward(input,
                                       weights,
                                       bias,
                                       old_h,
