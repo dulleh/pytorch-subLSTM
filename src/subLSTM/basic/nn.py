@@ -101,8 +101,7 @@ class SubLSTMCell(nn.Module):
 
         print("input_size: {}".format(input_size))
         print("state_size: {}".format(hidden_size))
-        print("W.size(): [{},{}]".format(input_size, gate_size))
-        print("U.size(): [{},{}]".format(hidden_size, gate_size))
+        print("gate_size: {}".format(gate_size))
 
         self.input_layer = nn.Linear(input_size, gate_size, bias=bias)
         self.recurrent_layer = nn.Linear(hidden_size, gate_size, bias=bias)
@@ -118,7 +117,6 @@ class SubLSTMCell(nn.Module):
 
     def forward(self, input: torch.Tensor, hx):
         print('input_size: {}'.format(input.size()))
-        print('weights_size: {}'.format(self.weights.size()))
         if self.bias is not None:
             print('bias_size: {}'.format(self.bias.size()))
         for i, st in enumerate(hx):
