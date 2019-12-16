@@ -117,8 +117,6 @@ class SubLSTMCell(nn.Module):
 
     def forward(self, input: torch.Tensor, hx):
         print('input_size: {}'.format(input.size()))
-        if self.bias is not None:
-            print('bias_size: {}'.format(self.bias.size()))
         for i, st in enumerate(hx):
             print('state[{}]_size {}'.format(i, st.size()))
         return sublstm(
