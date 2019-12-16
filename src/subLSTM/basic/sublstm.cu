@@ -36,10 +36,10 @@ namespace {
 	  // column index
 	  const int c = blockIdx.x * blockDim.x + threadIdx.x;
 	  if (c < gates.size(2)){
-	  //TODO: We need a forget gate, but also need to check if these are ordered correctly
+	  //These are ordered in the same way as in functional.py
 		input_gate[n][c] = sigmoid(gates[n][0][c]);
 		output_gate[n][c] = sigmoid(gates[n][1][c]);
-		candidate_cell[n][c] = sigmoid(gates[n][2][c]);
+		candidate_cell[n][c] = sigmoid(gates[n][2][c]); // z_t
 		forget_gate[n][c] = sigmoid(gates[n][3][c]);
 		new_cell[n][c] =
 			(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
