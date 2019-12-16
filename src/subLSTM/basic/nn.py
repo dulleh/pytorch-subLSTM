@@ -99,6 +99,11 @@ class SubLSTMCell(nn.Module):
 
         gate_size = 4 * hidden_size
 
+        print("input_size: {}".format(input_size))
+        print("state_size: {}".format(hidden_size))
+        print("W.size(): [{},{}]".format(input_size, gate_size))
+        print("U.size(): [{},{}]".format(hidden_size, gate_size))
+
         self.input_layer = nn.Linear(input_size, gate_size, bias=bias)
         self.recurrent_layer = nn.Linear(hidden_size, gate_size, bias=bias)
 
