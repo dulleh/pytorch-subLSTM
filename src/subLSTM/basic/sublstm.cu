@@ -61,7 +61,7 @@ std::vector<torch::Tensor> forward_cuda(
   const auto batch_size = old_cell.size(0);
   const auto state_size = old_cell.size(1);
 
-  auto gates = gate_weights.reshape({batch_size, 3, state_size});
+  auto gates = gate_weights.reshape({batch_size, 4, state_size});
   auto new_h = torch::zeros_like(old_cell);
   auto new_cell = torch::zeros_like(old_cell);
   auto input_gate = torch::zeros_like(old_cell);
