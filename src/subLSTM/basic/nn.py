@@ -59,7 +59,7 @@ class SubLSTMFunction(Function):
         backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
         outputs = backward_cpp.backward(
             grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
-        d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
+        d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
         ## calculate backward here explicitly (in python)
 
