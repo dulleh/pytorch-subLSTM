@@ -57,8 +57,8 @@ class SubLSTMFunction(Function):
         sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
         sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
         backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
-        print(grad_h.shape())
-        print(grad_cell.shape())
+        print(grad_h.size())
+        print(grad_cell.size())
         print(ctx.saved_variables.size())
         outputs = backward_cpp.backward(
             grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
@@ -124,9 +124,9 @@ class SubLSTMCell(nn.Module):
                 pass
 
     def forward(self, input: torch.Tensor, hx):
-        print('input_size: {}'.format(input.size()))
-        for i, st in enumerate(hx):
-            print('state[{}]_size {}'.format(i, st.size()))
+        #print('input_size: {}'.format(input.size()))
+        #for i, st in enumerate(hx):
+        #    print('state[{}]_size {}'.format(i, st.size()))
         return sublstm(
             input, hx,
             self.input_layer,
