@@ -43,18 +43,24 @@ class SubLSTMFunction(Function):
                                       old_h,
                                       old_cell)
         new_h, new_cell = outputs[:2]
-        variables = outputs[1:] + [weights]
+        variables = outputs[1:] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
 
         return new_h, new_cell
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
-        print("backward")
-        #outputs = lltm_cuda.backward(
-        #    grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
-        # d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
-        #return d_input, d_weights, d_bias, d_old_h, d_old_cell
+        ## Need to see what @staticmethod keyword does..
+        ## and where to move the path stuff if wanting to only do it once
+        # Load/Compile the c++/cuda files
+        path_to_this = os.path.abspath(os.path.dirname(__file__))
+        sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
+        sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
+        backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
+        outputs = backward_cpp.backward(
+            grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
+        d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
+        return d_input, d_weights, d_bias, d_old_h, d_old_cell
         ## calculate backward here explicitly (in python)
 
 

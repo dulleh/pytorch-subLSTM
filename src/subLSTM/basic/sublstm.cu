@@ -40,7 +40,7 @@ namespace {
 		input_gate[n][c] = sigmoid(gates[n][0][c]);
 		output_gate[n][c] = sigmoid(gates[n][1][c]);
 		candidate_cell[n][c] = sigmoid(gates[n][2][c]); // z_t
-		forget_gate[n][c] = sigmoid(gates[n][3][c]);
+		forget_gate[n][c] = sigmoid(gates[n][3][c]); //TODO: swap order of this and candidate cell, with knock-on effects on the backward pass
 		new_cell[n][c] =
 			(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
 		new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
