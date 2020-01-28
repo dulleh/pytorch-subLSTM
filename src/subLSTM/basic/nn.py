@@ -57,19 +57,21 @@ class SubLSTMFunction(Function):
         sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
         sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
         backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
+        print(grad_h.shape())
+        print(grad_cell.shape())
+        print(ctx.saved_variables.size())
         outputs = backward_cpp.backward(
             grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
         d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
-        ## calculate backward here explicitly (in python)
 
 
 class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
         super(SubLSTMCudaCell, self).__init__()
         self.input_size = input_size
-        print("param: input_size: {}".format(input_size))
-        print("param: state_size: {}".format(state_size))
+        #print("param: input_size: {}".format(input_size))
+        #print("param: state_size: {}".format(state_size))
         self.state_size = state_size
         self.weights = nn.Parameter(
             torch.Tensor(4 * state_size, input_size + state_size))
@@ -84,12 +86,12 @@ class SubLSTMCudaCell(nn.Module):
                 pass
 
     def forward(self, input, state):
-        print('input_size: {}'.format(input.size()))
-        print('weights_size: {}'.format(self.weights.size()))
-        if self.bias is not None:
-            print('bias_size: {}'.format(self.bias.size()))
-        for i, st in enumerate(state):
-            print('state[{}]_size {}'.format(i, st.size()))
+        #print('input_size: {}'.format(input.size()))
+        #print('weights_size: {}'.format(self.weights.size()))
+        #if self.bias is not None:
+            #print('bias_size: {}'.format(self.bias.size()))
+        #for i, st in enumerate(state):
+            #print('state[{}]_size {}'.format(i, st.size()))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
     # def backward?
