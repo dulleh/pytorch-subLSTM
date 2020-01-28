@@ -59,7 +59,8 @@ class SubLSTMFunction(Function):
         backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
         print(grad_h.size())
         print(grad_cell.size())
-        print(ctx.saved_variables.size())
+        for i, sv in enumerate(ctx.saved_variables):
+            print('saved_var[{}]_size {}'.format(i, sv.size()))
         outputs = backward_cpp.backward(
             grad_h.contiguous(), grad_cell.contiguous(), *ctx.saved_variables)
         d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
