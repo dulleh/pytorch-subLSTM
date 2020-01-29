@@ -36,7 +36,6 @@ class SubLSTMFunction(Function):
         bias.contiguous()
         old_h.contiguous()
         old_cell.contiguous()
-        print('oldcell.size: {}'.format(old_cell.size()))
         ## Without this second call to .contiguous on input we get an error?
         outputs = forward_cpp.forward(input.contiguous(),
                                       weights,
@@ -72,8 +71,8 @@ class SubLSTMFunction(Function):
             ctx.saved_variables[4],
             ctx.saved_variables[5],
             ctx.saved_variables[6],
-            ctx.saved_variables[7],
-            ctx.saved_variables[8])
+            ctx.saved_variables[7])
+            #//ctx.saved_variables[8])
         d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
