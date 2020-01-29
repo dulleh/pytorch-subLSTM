@@ -55,7 +55,7 @@ std::vector<torch::Tensor> backward(
     torch::Tensor gate_weights,
     torch::Tensor weights,
     torch::Tensor old_cell) {
-    cout << "backwards attempt" << endl;
+    std::cout << "backwards attempt" << std::endl;
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
   auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
   // subLSTM definition that ht = sigmoid(ct) - ot so delta ct = delta ht * (dht/dct)
