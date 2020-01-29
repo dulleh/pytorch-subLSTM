@@ -55,6 +55,7 @@ std::vector<torch::Tensor> backward(
     torch::Tensor gate_weights,
     torch::Tensor weights,
     torch::Tensor old_cell) {
+
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
   auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
   // subLSTM definition that ht = sigmoid(ct) - ot so delta ct = delta ht * (dht/dct)
@@ -67,21 +68,21 @@ std::vector<torch::Tensor> backward(
 
   // is it enough to just do d_sigmoid(gate_weights)?
   // check if there is a built in torch::d_sigmoid function?
-  auto gates = gate_weights.chunk(4, /*dim=*/1);
+  auto gates = gate_weights.chunk(4, 1);
   d_input_gate *= d_sigmoid(gates[0]);
   d_output_gate *= d_sigmoid(gates[1]);
   d_candidate_cell *= d_sigmoid(gates[2]);
   d_forget_gate *= d_sigmoid(gates[3]); // might have to swap these two later
   auto d_gates =
-      torch::cat({d_input_gate, d_output_gate, d_candidate_cell, d_forget_gate}, /*dim=*/1);
+      torch::cat({d_input_gate, d_output_gate, d_candidate_cell, d_forget_gate}, 1);
 
   auto d_weights = d_gates.t().mm(X);
-  auto d_bias = d_gates.sum(/*dim=*/0, /*keepdim=*/true);
+  auto d_bias = d_gates.sum(0, true);
 
   auto d_X = d_gates.mm(weights);
   const auto state_size = grad_h.size(1);
-  auto d_old_h = d_X.slice(/*dim=*/1, 0, state_size);
-  auto d_input = d_X.slice(/*dim=*/1, state_size);
+  auto d_old_h = d_X.slice(1, 0, state_size);
+  auto d_input = d_X.slice(1, state_size);
 
   return {d_old_h, d_input, d_weights, d_bias, d_old_cell};
 }
