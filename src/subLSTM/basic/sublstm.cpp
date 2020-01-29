@@ -5,6 +5,7 @@
 //Includes ATen (tensor library), pybind11, and headers to manage the interactions between the two.
 #include <torch/extension.h>
 #include <iostream>
+#include <cassert>
 //namespace py = pybind11;
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
