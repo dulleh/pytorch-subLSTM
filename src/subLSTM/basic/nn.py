@@ -71,8 +71,8 @@ class SubLSTMFunction(Function):
             ctx.saved_variables[4],
             ctx.saved_variables[5],
             ctx.saved_variables[6],
-            ctx.saved_variables[7])
-            #//ctx.saved_variables[8])
+            ctx.saved_variables[7],
+            ctx.saved_variables[8])
         d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
