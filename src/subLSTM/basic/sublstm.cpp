@@ -61,7 +61,7 @@ std::vector<torch::Tensor> backward(
   //std::cout << "backwards attempt" << std::endl;
 
   // stand in for old_cell for debugging
-  torch::Tensor o_c = tensor::randn({20,50});
+  torch::Tensor o_c = torch::randn({20,50});
 
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
   auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
