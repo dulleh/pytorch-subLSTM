@@ -64,15 +64,15 @@ class SubLSTMFunction(Function):
         outputs = backward_cpp.backward(
             grad_h.contiguous(),
             grad_cell.contiguous(),
-            ctx.saved_variables[0],
-            ctx.saved_variables[1],
-            ctx.saved_variables[2],
-            ctx.saved_variables[3],
-            ctx.saved_variables[4],
-            ctx.saved_variables[5],
-            ctx.saved_variables[6],
-            ctx.saved_variables[7],
-            ctx.saved_variables[8])
+            ctx.saved_variables[0].cuda(),
+            ctx.saved_variables[1].cuda(),
+            ctx.saved_variables[2].cuda(),
+            ctx.saved_variables[3].cuda(),
+            ctx.saved_variables[4].cuda(),
+            ctx.saved_variables[5].cuda(),
+            ctx.saved_variables[6].cuda(),
+            ctx.saved_variables[7].cuda(),
+            ctx.saved_variables[8].cuda())
         d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
