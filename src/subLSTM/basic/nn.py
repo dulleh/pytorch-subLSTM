@@ -59,20 +59,28 @@ class SubLSTMFunction(Function):
         backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
         print(grad_h.size())
         print(grad_cell.size())
+        print(grad_h)
+        print(grad_cell)
+        grad_h.cuda()
+        grad_cell.cuda()
+        print(grad_h)
+        print(grad_cell)
         for i, sv in enumerate(ctx.saved_variables):
             print('saved_var[{}]_size {}'.format(i, sv.size()))
+            sv.cuda()
+            print(sv)
         outputs = backward_cpp.backward(
-            grad_h.contiguous().cuda(),
-            grad_cell.contiguous().cuda(),
-            ctx.saved_variables[0].cuda(),
-            ctx.saved_variables[1].cuda(),
-            ctx.saved_variables[2].cuda(),
-            ctx.saved_variables[3].cuda(),
-            ctx.saved_variables[4].cuda(),
-            ctx.saved_variables[5].cuda(),
-            ctx.saved_variables[6].cuda(),
-            ctx.saved_variables[7].cuda())#,
-            #ctx.saved_variables[8].cuda())
+            grad_h.contiguous(),
+            grad_cell.contiguous(),
+            ctx.saved_variables[0],
+            ctx.saved_variables[1],
+            ctx.saved_variables[2],
+            ctx.saved_variables[3],
+            ctx.saved_variables[4],
+            ctx.saved_variables[5],
+            ctx.saved_variables[6],
+            ctx.saved_variables[7])#,
+            #ctx.saved_variables[8])
         d_old_h, d_input, d_weights, d_bias, d_old_cell = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
