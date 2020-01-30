@@ -60,6 +60,9 @@ std::vector<torch::Tensor> backward(
   //assert(old_cell.sizes() == std::vector<int64_t>{20,50});
   //std::cout << "backwards attempt" << std::endl;
 
+  // stand in for old_cell for debugging
+  torch::Tensor o_c = tensor::randn({20,50});
+
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
   auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
   // subLSTM definition that ht = sigmoid(ct) - ot so delta ct = delta ht * (dht/dct)
@@ -68,7 +71,8 @@ std::vector<torch::Tensor> backward(
   // is forget_gate = ft? - yes.
   auto d_candidate_cell = d_new_cell; // this is delta(zt)
   auto d_input_gate = -d_new_cell; // this is delta(it)
-  auto d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
+  //auto d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
+  auto d_forget_gate = d_new_cell * o_c; // need to get old_cell passed in??
 
   // is it enough to just do d_sigmoid(gate_weights)?
   // check if there is a built in torch::d_sigmoid function?
@@ -81,7 +85,9 @@ std::vector<torch::Tensor> backward(
       torch::cat({d_input_gate, d_output_gate, d_candidate_cell, d_forget_gate}, 1);
 
   auto d_weights = d_gates.t().mm(X);
-  auto d_bias = d_gates.sum(0, true);
+  // sum across rows i.e. sum of columns,
+  // keepdim=true means we're getting a result that has 1 row, columns same as before
+  auto d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
 
   auto d_X = d_gates.mm(weights);
   const auto state_size = grad_h.size(1);

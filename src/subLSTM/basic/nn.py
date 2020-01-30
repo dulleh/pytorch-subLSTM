@@ -105,8 +105,6 @@ class SubLSTMCudaCell(nn.Module):
             #print('state[{}]_size {}'.format(i, st.size()))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
-    # def backward?
-
 
 class SubLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True):
