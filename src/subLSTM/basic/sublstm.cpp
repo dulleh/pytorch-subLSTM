@@ -54,7 +54,7 @@ std::vector<torch::Tensor> backward(
     torch::Tensor candidate_cell,
     torch::Tensor X,
     torch::Tensor gate_weights,
-    torch::Tensor weights}//,
+    torch::Tensor weights) {//,
     //torch::Tensor old_cell) {
 
   //assert(old_cell.sizes() == std::vector<int64_t>{20,50});
