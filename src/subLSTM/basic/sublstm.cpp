@@ -53,8 +53,8 @@ std::vector<torch::Tensor> backward(
     torch::Tensor forget_gate,
     torch::Tensor candidate_cell,
     torch::Tensor X,
-    torch::Tensor gate_weights,
-    torch::Tensor weights) {//,
+    torch::Tensor gate_weights) { //,
+    //torch::Tensor weights,
     //torch::Tensor old_cell) {
 
   //assert(old_cell.sizes() == std::vector<int64_t>{20,50});
@@ -62,6 +62,7 @@ std::vector<torch::Tensor> backward(
 
   // stand in for old_cell for debugging
   torch::Tensor o_c = torch::randn({20,50});
+  torch::Tensor weights = torch::randn({200,52});
 
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
   auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
