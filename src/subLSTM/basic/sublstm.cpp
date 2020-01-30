@@ -57,8 +57,8 @@ std::vector<torch::Tensor> backward(
     torch::Tensor weights,
     torch::Tensor old_cell) {
 
-  assert(old_cell.sizes() == std::vector<int64_t>{20,50});
-  std::cout << "backwards attempt" << std::endl;
+  //assert(old_cell.sizes() == std::vector<int64_t>{20,50});
+  //std::cout << "backwards attempt" << std::endl;
 
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
   auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
