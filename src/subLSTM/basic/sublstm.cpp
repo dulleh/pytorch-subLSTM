@@ -60,8 +60,8 @@ std::vector<torch::Tensor> backward(
   //assert(old_cell.sizes() == std::vector<int64_t>{20,50});
   //std::cout << "backwards attempt" << std::endl;
 
-  // stand in for old_cell for debugging
-  //torch::Tensor o_c = torch::randn({20,50});
+  // stand-ins for debugging
+  //torch::Tensor old_cell = torch::randn({20,50});
   //torch::Tensor weights = torch::randn({200,52});
 
   auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
@@ -73,7 +73,7 @@ std::vector<torch::Tensor> backward(
   auto d_candidate_cell = d_new_cell; // this is delta(zt)
   auto d_input_gate = -d_new_cell; // this is delta(it)
   //auto d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
-  auto d_forget_gate = d_new_cell * o_c; // need to get old_cell passed in??
+  auto d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
 
   // is it enough to just do d_sigmoid(gate_weights)?
   // check if there is a built in torch::d_sigmoid function?
