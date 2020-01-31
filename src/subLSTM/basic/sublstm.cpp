@@ -56,7 +56,16 @@ std::vector<torch::Tensor> backward(
     torch::Tensor gate_weights,
     torch::Tensor weights,
     torch::Tensor old_cell) {
-
+  CHECK_INPUT(grad_h);
+  CHECK_INPUT(grad_cell);
+  CHECK_INPUT(input_gate);
+  CHECK_INPUT(output_gate);
+  CHECK_INPUT(forget_gate);
+  CHECK_INPUT(candidate_cell);
+  CHECK_INPUT(X);
+  CHECK_INPUT(gate_weights);
+  CHECK_INPUT(weights);
+  CHECK_INPUT(old_cell);
   //assert(old_cell.sizes() == std::vector<int64_t>{20,50});
   //std::cout << "backwards attempt" << std::endl;
 
