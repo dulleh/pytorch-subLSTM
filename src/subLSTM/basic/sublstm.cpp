@@ -95,7 +95,7 @@ std::vector<torch::Tensor> backward(
   auto d_old_h = d_X.slice(1, 0, state_size);
   auto d_input = d_X.slice(1, state_size);
 
-  return {d_old_h, d_input, d_weights, d_bias, d_old_cell};
+  return {d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates};
 }
 
 
