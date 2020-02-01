@@ -65,8 +65,9 @@ class SubLSTMFunction(Function):
         # Load/Compile the c++/cuda files
         path_to_this = os.path.abspath(os.path.dirname(__file__))
         sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-        #sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
-        backward_cpp = load(name="backward", sources=[sublstm_cpp_path])#, sublstm_cu_path])
+        sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
+        print(sublstm_cpp_path)
+        backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
         print(grad_h.size())
         print(grad_cell.size())
         grad_h.cuda()
@@ -199,8 +200,10 @@ class SubLSTM(nn.Module):
         print(SubLSTM)
         print(self.__class__)
         print(isinstance(self, SubLSTM))
-        super(SubLSTM, self).__init__()
-
+        
+        #self.as_super = super(SubLSTM, self)
+        super().__init__()
+        
         # Uncomment to get layers of different size. Disable for consistency with LSTM
         # if isinstance(hidden_size, list) and len(hidden_size) != num_layers:
         #     raise ValueError(

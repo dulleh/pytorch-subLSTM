@@ -1,8 +1,10 @@
+import sys
 import torch
 import torch.nn as nn
 import torch.jit as jit
 
-
+sys.path.insert(0, '../../src/')
+sys.path.insert(0, '../')
 
 from subLSTM.basic.nn import SubLSTM as VanillaSubLSTM
 from subLSTM.torchscript.rnn import SubLSTM as ScriptedSubLSTM
