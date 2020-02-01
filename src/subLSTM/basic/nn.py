@@ -21,10 +21,19 @@ class SubLSTMFunction(Function):
     # backwards pass. It contains 4 gates: input_gate, output_gate, 
     #                                      forget_gate
     @staticmethod
-    def forward(ctx, input, weights, bias, old_h, old_cell):
+    def forward(ctx, input, weights, bias, old_h, old_cell, input_layer, recurrent_layer):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
+        h_tm1, c_tm1 = old_h, old_cell
+        proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))
+
+        in_gate, out_gate, z_t, f_gate = proj_input.chunk(4, 1)
+        c_t = c_tm1 * f_gate + z_t - in_gate
+        h_t = torch.sigmoid(c_t) - out_gate
+    
+        return h_t, c_t
+        """
         path_to_this = os.path.abspath(os.path.dirname(__file__))
         sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
         sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
@@ -47,6 +56,7 @@ class SubLSTMFunction(Function):
         ctx.save_for_backward(*variables)
 
         return new_h, new_cell
+        """
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
@@ -55,8 +65,8 @@ class SubLSTMFunction(Function):
         # Load/Compile the c++/cuda files
         path_to_this = os.path.abspath(os.path.dirname(__file__))
         sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-        sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
-        backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
+        #sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
+        backward_cpp = load(name="backward", sources=[sublstm_cpp_path])#, sublstm_cu_path])
         print(grad_h.size())
         print(grad_cell.size())
         grad_h.cuda()
@@ -88,6 +98,9 @@ class SubLSTMCudaCell(nn.Module):
         self.weights = nn.Parameter(
             torch.Tensor(4 * state_size, input_size + state_size))
         self.bias = nn.Parameter(torch.Tensor(4 * state_size)) if bias else None
+        self.input_layer = nn.Linear(input_size, 200, bias=bias)
+        self.recurrent_layer = nn.Linear(50, 200, bias=bias)
+        
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -104,7 +117,7 @@ class SubLSTMCudaCell(nn.Module):
             #print('bias_size: {}'.format(self.bias.size()))
         #for i, st in enumerate(state):
             #print('state[{}]_size {}'.format(i, st.size()))
-        return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
+        return SubLSTMFunction.apply(input, self.weights, self.bias, *state, self.input_layer, self.recurrent_layer)
 
 
 class SubLSTMCell(nn.Module):
@@ -144,6 +157,7 @@ class SubLSTMCell(nn.Module):
         )
 
 
+"""
 class fixSubLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True):
         super(fixSubLSTMCell, self).__init__()
@@ -173,7 +187,7 @@ class fixSubLSTMCell(nn.Module):
             self.input_layer,
             self.recurrent_layer,
             self.f_gate
-        )
+        )"""
 
 
 # noinspection PyShadowingBuiltins,PyPep8Naming
@@ -200,7 +214,8 @@ class SubLSTM(nn.Module):
         # Use for bidirectional later
         suffix = ''
         if cell_type == 'fixed_forget':
-            layer_type = fixSubLSTMCell
+            #layer_type = fixSubLSTMCell
+            layer_type = SubLSTMCell
         elif cell_type == 'cuda':
             layer_type = SubLSTMCudaCell
         elif cell_type == 'vanilla':
