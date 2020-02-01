@@ -109,7 +109,8 @@ class SubLSTMCudaCell(nn.Module):
                 module.reset_parameters()
             except AttributeError:
                 pass
-
+    
+    #@staticmethod
     def forward(self, input, state):
         #print('input_size: {}'.format(input.size()))
         #print('weights_size: {}'.format(self.weights.size()))
@@ -146,6 +147,7 @@ class SubLSTMCell(nn.Module):
             except AttributeError:
                 pass
 
+    #@staticmethod
     def forward(self, input: torch.Tensor, hx):
         #print('input_size: {}'.format(input.size()))
         #for i, st in enumerate(hx):
@@ -157,7 +159,6 @@ class SubLSTMCell(nn.Module):
         )
 
 
-"""
 class fixSubLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True):
         super(fixSubLSTMCell, self).__init__()
@@ -181,20 +182,23 @@ class fixSubLSTMCell(nn.Module):
             except AttributeError:
                 pass
 
+    #@staticmethod
     def forward(self, input, hx):
         return fsublstm(
             input, hx,
             self.input_layer,
             self.recurrent_layer,
             self.f_gate
-        )"""
+        )
 
 
 # noinspection PyShadowingBuiltins,PyPep8Naming
 class SubLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True,
                     cell_type='vanilla', batch_first=False, dropout=0.0):
-
+        print(SubLSTM)
+        print(self.__class__)
+        print(isinstance(self, SubLSTM))
         super(SubLSTM, self).__init__()
 
         # Uncomment to get layers of different size. Disable for consistency with LSTM
@@ -260,6 +264,7 @@ class SubLSTM(nn.Module):
     def flatten_parameters(self):
         pass
 
+    #@staticmethod
     def forward(self, input, hx=None):
         # TODO: Check docs later and add the packed sequence and seq2seq models
         # is_packed = isinstance(input, PackedSequence)
