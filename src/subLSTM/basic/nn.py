@@ -25,6 +25,8 @@ class SubLSTMFunction(Function):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
+		print(old_h.size())
+		print(input.size())
         X = torch.cat((old_h, input), 1)
         gate_weights = bias + X.mm(weights.t())
         batch_size = old_cell.size(0)
