@@ -18,19 +18,25 @@ class SubLSTMFunction(Function):
     # Remember that old_h is the output from the previous cell i.e. h_(t-1)
     # Likewise, old_cell is C_(t-1). Both of these get updated every time step
     # The parameter weights, however, stays the same until it is updated in the
-    # backwards pass. It contains 4 gates: input_gate, output_gate, 
-    #                                      forget_gate
+    # backwards pass. It contains 4 gates: input_gate, output_gate,
+    #                                      input_tanh_gate, forget_gate
     @staticmethod
-    def forward(ctx, input, weights, bias, old_h, old_cell, input_layer, recurrent_layer):
+    def forward(ctx, input, weights, bias, old_h, old_cell):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
-        h_tm1, c_tm1 = old_h, old_cell
-        proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))
-
-        in_gate, out_gate, z_t, f_gate = proj_input.chunk(4, 1)
+        X = torch.cat((old_h, input), 1)
+        gate_weights = torch.addmm(bias, X, weights.t)
+        batch_size = old_cell.size(0)
+        state_size = old_cell.size(1)
+        gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size))
+        
+        in_gate, out_gate, z_t, f_gate = gates.chunk(4, 1)
         c_t = c_tm1 * f_gate + z_t - in_gate
         h_t = torch.sigmoid(c_t) - out_gate
+		
+        variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_gate] + [X] + [gates] + [weights] + [old_cell]
+        ctx.save_for_backward(*variables)
     
         return h_t, c_t
         """
@@ -99,8 +105,6 @@ class SubLSTMCudaCell(nn.Module):
         self.weights = nn.Parameter(
             torch.Tensor(4 * state_size, input_size + state_size))
         self.bias = nn.Parameter(torch.Tensor(4 * state_size)) if bias else None
-        self.input_layer = nn.Linear(input_size, 200, bias=bias)
-        self.recurrent_layer = nn.Linear(50, 200, bias=bias)
         
         self.reset_parameters()
 
