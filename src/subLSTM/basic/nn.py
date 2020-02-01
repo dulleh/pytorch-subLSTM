@@ -123,7 +123,7 @@ class SubLSTMCudaCell(nn.Module):
             #print('bias_size: {}'.format(self.bias.size()))
         #for i, st in enumerate(state):
             #print('state[{}]_size {}'.format(i, st.size()))
-        return SubLSTMFunction.apply(input, self.weights, self.bias, *state, self.input_layer, self.recurrent_layer)
+        return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
 
 class SubLSTMCell(nn.Module):
