@@ -41,6 +41,10 @@ class SubLSTMFunction(Function):
         variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_t] + [X] + [gates] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
         
+        print("output h_t: ", h_t.size())
+        print("c_t: ", c_t.size())
+        print("old_cell: ", old_cell.size())
+		
         return h_t, c_t
         """
         path_to_this = os.path.abspath(os.path.dirname(__file__))
