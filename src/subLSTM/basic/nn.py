@@ -32,7 +32,7 @@ class SubLSTMFunction(Function):
         gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size))
         
         in_gate, out_gate, z_t, f_gate = gates.chunk(4, 1)
-        c_t = c_tm1 * f_gate + z_t - in_gate
+        c_t = old_cell * f_gate + z_t - in_gate
         h_t = torch.sigmoid(c_t) - out_gate
 		
         variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_gate] + [X] + [gates] + [weights] + [old_cell]
