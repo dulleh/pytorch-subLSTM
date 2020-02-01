@@ -35,7 +35,7 @@ class SubLSTMFunction(Function):
         c_t = old_cell * f_gate + z_t - in_gate
         h_t = torch.sigmoid(c_t) - out_gate
 		
-        variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_gate] + [X] + [gates] + [weights] + [old_cell]
+        variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_t] + [X] + [gates] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
     
         return h_t, c_t
