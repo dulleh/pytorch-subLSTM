@@ -52,7 +52,7 @@ class SubLSTMFunction(Function):
         print("input size 0: ", input.size())
         input.contiguous()
         print("next: ", input.size())
-		weights.contiguous()
+        weights.contiguous()
         bias.contiguous()
         old_h.contiguous()
         old_cell.contiguous()
