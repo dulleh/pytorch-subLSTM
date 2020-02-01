@@ -25,7 +25,8 @@ class SubLSTMFunction(Function):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
-        print(old_h.size())
+        """
+		print(old_h.size())
         print(input.size())
         X = torch.cat((old_h, input), 1)
         gate_weights = bias + X.mm(weights.t())
@@ -64,7 +65,7 @@ class SubLSTMFunction(Function):
         ctx.save_for_backward(*variables)
 
         return new_h, new_cell
-        """
+        
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):

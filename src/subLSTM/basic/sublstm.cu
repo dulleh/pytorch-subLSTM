@@ -8,6 +8,8 @@
 #include <cuda_runtime.h>
 #include <vector>
 
+#include <iostream>
+
 namespace {
 
 	template <typename scalar_t>
@@ -55,6 +57,8 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor bias,
     torch::Tensor old_h,
     torch::Tensor old_cell) {
+  cout << input.size(0) << input.size(1) << input.size(2) << endl;
+  cout << old_h.size(0) << old_size(1) << endl;
   auto X = torch::cat({old_h, input}, /*dim=*/1);
   auto gate_weights = torch::addmm(bias, X, weights.transpose(0, 1));
 
