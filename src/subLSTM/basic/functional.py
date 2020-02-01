@@ -8,7 +8,8 @@ def sublstm(input, hidden, input_layer, recurrent_layer):
     in_gate, out_gate, z_t, f_gate = proj_input.chunk(4, 1)
     c_t = c_tm1 * f_gate + z_t - in_gate
     h_t = torch.sigmoid(c_t) - out_gate
-
+    print("milton h_t: ", h_t.size())
+    print("milton c_t: ", c_t.size())
     return h_t, c_t
 
 def fsublstm(input, hidden, input_layer, recurrent_layer, f_gate):
