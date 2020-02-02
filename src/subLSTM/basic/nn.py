@@ -29,7 +29,7 @@ class SubLSTMFunction(Function):
         print("old_h size: ", old_h.size())
         print("input size:", input.size())
         X = torch.cat((old_h, input), 1)
-        gate_weights = bias + X.mm(weights.t())
+        gate_weights = bias + weights.mm(X.t())
         batch_size = old_cell.size(0)
         state_size = old_cell.size(1)
         gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size))
