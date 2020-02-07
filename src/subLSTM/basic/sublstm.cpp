@@ -114,6 +114,6 @@ std::vector<torch::Tensor> sublstm_backward(
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  //m.def("forward", &forward, "forward pass (cuda)");
+  m.def("forward", &forward, "forward pass (cuda)");
   m.def("backward", &sublstm_backward, "backward pass (cpp)");
 }
