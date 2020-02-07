@@ -40,6 +40,9 @@ class SubLSTMFunction(Function):
         
         in_gate, out_gate, z_t, f_gate = gates.chunk(4, 1)
         in_gate = in_gate.squeeze()
+        out_gate = out_gate.squeeze()
+        z_t = z_t.squeeze()
+        f_gate = f_gate.squeeze()
         print("in_gate", in_gate.size())
         print("out_gate", out_gate.size())
         print("z_t", z_t.size())
