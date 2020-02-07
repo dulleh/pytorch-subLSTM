@@ -10,7 +10,6 @@ from torch.nn.modules.rnn import RNNCellBase
 # from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as pad
 from torch.autograd import Function
 from .functional import sublstm, fsublstm
-from torch.utils.cpp_extension import load
 
 import sublstm_cuda
 
