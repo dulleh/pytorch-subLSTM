@@ -26,13 +26,14 @@ class SubLSTMFunction(Function):
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
         #"""
-        print("old_h size: ", old_h.size()) #[20,50]
+        print("old_h size: ", old_h.size()) # [20,50]
         print("input size:", input.size()) # [20, 2]
         X = torch.cat((old_h, input), 1)
-        print("weights: ", weights.size())
-        print("X: ", X.size())
-        print("bias: ", bias.size())
-        gate_weights = bias + X.mm(weights.t())
+        print("weights: ", weights.size()) # [200, 52]
+        print("X: ", X.size()) # [20, 52]
+        print("bias: ", bias.size()) # [200]
+        gate_weights = bias + X.mm(weights.t()) # should be [20, 200]
+        print("gate_weights", gate_weights.size())
         batch_size = old_cell.size(0)
         state_size = old_cell.size(1)
         gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size))
