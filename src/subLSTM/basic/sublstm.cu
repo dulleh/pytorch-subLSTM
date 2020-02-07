@@ -57,8 +57,8 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor bias,
     torch::Tensor old_h,
     torch::Tensor old_cell) {
-  printf("input (%d, %d)\n", input.size(0), input.size(1));
-  printf("old_h (%d, %d)\n", old_h.size(0), old_h.size(1));
+  //printf("input (%d, %d)\n", input.size(0), input.size(1));
+  //printf("old_h (%d, %d)\n", old_h.size(0), old_h.size(1));
 
   auto X = torch::cat({old_h, input}, /*dim=*/1);
   auto gate_weights = torch::addmm(bias, X, weights.transpose(0, 1));
