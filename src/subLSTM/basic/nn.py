@@ -28,7 +28,7 @@ class SubLSTMFunction(Function):
         #"""
         print("old_h size: ", old_h.size()) #[20,50]
         print("input size:", input.size()) # [20, 2]
-        X = torch.cat((old_h, input), 2)
+        X = torch.cat((old_h, input), 1)
         print("weights: ", weights.size())
         print("X: ", X.size())
         print("bias: ", bias.size())
