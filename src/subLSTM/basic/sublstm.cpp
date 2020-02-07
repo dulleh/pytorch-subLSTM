@@ -73,36 +73,36 @@ std::vector<torch::Tensor> backward(
   //torch::Tensor old_cell = torch::randn({20,50});
   //torch::Tensor weights = torch::randn({200,52});
 
-  auto d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
-  auto d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
+  torch::Tensor d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
+  torch::Tensor d_new_cell = d_sigmoid(new_cell) + grad_cell; // not sure about the + grad_cell but this comes from
   // subLSTM definition that ht = sigmoid(ct) - ot so delta ct = delta ht * (dht/dct)
 
-  auto d_old_cell = d_new_cell * forget_gate; // dE/dct-1 = dE/dct * dct/dct-1 = delta(ct) * ft
+  torch::Tensor d_old_cell = d_new_cell * forget_gate; // dE/dct-1 = dE/dct * dct/dct-1 = delta(ct) * ft
   // is forget_gate = ft? - yes.
-  auto d_candidate_cell = d_new_cell; // this is delta(zt)
-  auto d_input_gate = -d_new_cell; // this is delta(it)
-  //auto d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
-  auto d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
+  torch::Tensor d_candidate_cell = d_new_cell; // this is delta(zt)
+  torch::Tensor d_input_gate = -d_new_cell; // this is delta(it)
+  //torch::Tensor d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
+  torch::Tensor d_forget_gate = d_new_cell * old_cell; // need to get old_cell passed in??
 
   // is it enough to just do d_sigmoid(gate_weights)?
   // check if there is a built in torch::d_sigmoid function?
-  auto gates = gate_weights.chunk(4, 1);
+  torch::Tensor gates = gate_weights.chunk(4, 1);
   d_input_gate *= d_sigmoid(gates[0]);
   d_output_gate *= d_sigmoid(gates[1]);
   d_candidate_cell *= d_sigmoid(gates[2]);
   d_forget_gate *= d_sigmoid(gates[3]); // might have to swap these two later
-  auto d_gates =
+  torch::Tensor d_gates =
       torch::cat({d_input_gate, d_output_gate, d_candidate_cell, d_forget_gate}, 1);
 
-  auto d_weights = d_gates.t().mm(X);
+  torch::Tensor d_weights = d_gates.t().mm(X);
   // sum across rows i.e. sum of columns,
   // keepdim=true means we're getting a result that has 1 row, columns same as before
-  auto d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
+  torch::Tensor d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
 
-  auto d_X = d_gates.mm(weights);
-  const auto state_size = grad_h.size(1);
-  auto d_old_h = d_X.slice(1, 0, state_size);
-  auto d_input = d_X.slice(1, state_size);
+  torch::Tensor d_X = d_gates.mm(weights);
+  const torch::Tensor state_size = grad_h.size(1);
+  torch::Tensor d_old_h = d_X.slice(1, 0, state_size);
+  torch::Tensor d_input = d_X.slice(1, state_size);
 
   return {d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates};
 }
