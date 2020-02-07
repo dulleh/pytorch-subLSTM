@@ -88,6 +88,10 @@ std::vector<torch::Tensor> sublstm_backward(
   // is it enough to just do d_sigmoid(gate_weights)?
   // check if there is a built in torch::d_sigmoid function?
   std::vector<torch::Tensor> gates = gate_weights.chunk(4, 1);
+  gate[0] = gate[0].squeeze();
+  gate[1] = gate[1].squeeze();
+  gate[2] = gate[2].squeeze();
+  gate[3] = gate[3].squeeze();
   d_input_gate *= d_sigmoid(gates[0]);
   d_output_gate *= d_sigmoid(gates[1]);
   d_candidate_cell *= d_sigmoid(gates[2]);
