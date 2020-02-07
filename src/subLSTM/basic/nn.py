@@ -129,12 +129,12 @@ class SubLSTMCudaCell(nn.Module):
     
     #@staticmethod
     def forward(self, input, state):
-        #print('input_size: {}'.format(input.size()))
-        #print('weights_size: {}'.format(self.weights.size()))
+        print('CELL input_size: {}'.format(input.size()))
+        #print('CELL weights_size: {}'.format(self.weights.size()))
         #if self.bias is not None:
             #print('bias_size: {}'.format(self.bias.size()))
-        #for i, st in enumerate(state):
-            #print('state[{}]_size {}'.format(i, st.size()))
+        for i, st in enumerate(state):
+            print('state[{}]_size {}'.format(i, st.size()))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
 
@@ -166,9 +166,9 @@ class SubLSTMCell(nn.Module):
 
     #@staticmethod
     def forward(self, input: torch.Tensor, hx):
-        #print('input_size: {}'.format(input.size()))
-        #for i, st in enumerate(hx):
-        #    print('state[{}]_size {}'.format(i, st.size()))
+        print('CELL input_size: {}'.format(input.size()))
+        for i, st in enumerate(hx):
+            print('state[{}]_size {}'.format(i, st.size()))
         return sublstm(
             input, hx,
             self.input_layer,
