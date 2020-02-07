@@ -44,7 +44,7 @@ std::vector<torch::Tensor> forward(
   return forward_cuda(input, weights, bias, old_h, old_cell);
 }
 
-std::vector<torch::Tensor> backward(
+std::vector<torch::Tensor> sublstm_backward(
     torch::Tensor grad_h,
     torch::Tensor grad_cell,
     torch::Tensor new_cell,
@@ -110,5 +110,5 @@ std::vector<torch::Tensor> backward(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   //m.def("forward", &forward, "forward pass (cuda)");
-  m.def("backward", &backward, "backward pass (cpp)");
+  m.def("backward", &sublstm_backward, "backward pass (cpp)");
 }
