@@ -121,12 +121,12 @@ setup(
     ext_modules=[
         CUDAExtension('sublstm_cuda', [
             'src/subLSTM/basic/sublstm.cpp',
-            'src/subLSTM/basic/sublstm.cu'
-        ])
+            'src/subLSTM/basic/sublstm.cu',
+        ]),
     ],
     # $ setup.py publish support.
     cmdclass={
         'upload': UploadCommand,
         'build_ext': BuildExtension
-    }
+    },
 )
