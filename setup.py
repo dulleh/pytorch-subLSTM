@@ -120,8 +120,8 @@ setup(
     ],
     ext_modules=[
         CUDAExtension('sublstm_cuda', [
-            'src/subLSTM/basic/sublstm.cpp',
-            'src/subLSTM/basic/sublstm.cu',
+            os.path.join(here, 'src', 'subLSTM', 'basic', 'sublstm.cpp'),
+            os.path.join(here, 'src', 'subLSTM', 'basic', 'sublstm.cu')
         ]),
     ],
     # $ setup.py publish support.
