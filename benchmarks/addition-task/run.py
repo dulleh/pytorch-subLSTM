@@ -282,6 +282,7 @@ try:
                     val_loss))
 
         if val_loss < best_loss:
+            print(val_loss)
             with open(save_path + '/model.pt', 'wb') as f:
                 torch.save({
                     'epoch': e + 1,
