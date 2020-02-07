@@ -58,6 +58,7 @@ std::vector<torch::Tensor> sublstm_backward(
     torch::Tensor old_cell) {
   CHECK_INPUT(grad_h);
   CHECK_INPUT(grad_cell);
+  CHECK_INPUT(new_cell);
   CHECK_INPUT(input_gate);
   CHECK_INPUT(output_gate);
   CHECK_INPUT(forget_gate);

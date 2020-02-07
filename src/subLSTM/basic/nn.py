@@ -105,13 +105,21 @@ class SubLSTMFunction(Function):
             print('saved_var[{}]_size {}'.format(i, sv.size()))
             sv.cuda()
         for i, sv in enumerate(ctx.saved_variables):
-            sv.contiguous()
+            #sv.contiguous()
             print(sv.device)
 
         outputs = backward_cpp.backward(
             grad_h.contiguous(),
             grad_cell.contiguous(),
-            *ctx.saved_variables
+            ctx.saved_variables[0].contiguous(),
+            ctx.saved_variables[1].contiguous(),
+            ctx.saved_variables[2].contiguous(),
+            ctx.saved_variables[3].contiguous(),
+            ctx.saved_variables[4].contiguous(),
+            ctx.saved_variables[5].contiguous(),
+            ctx.saved_variables[6].contiguous(),
+            ctx.saved_variables[7].contiguous(),
+            ctx.saved_variables[8].contiguous()
         )
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
