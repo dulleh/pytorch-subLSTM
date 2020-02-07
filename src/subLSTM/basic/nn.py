@@ -12,6 +12,8 @@ from torch.autograd import Function
 from .functional import sublstm, fsublstm
 from torch.utils.cpp_extension import load
 
+import sublstm_cuda
+
 ### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
@@ -22,9 +24,6 @@ class SubLSTMFunction(Function):
     #                                      input_tanh_gate, forget_gate
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
-        ## Need to see what @staticmethod keyword does..
-        ## and where to move the path stuff if wanting to only do it once
-        # Load/Compile the c++/cuda files
         """
         #print("old_h size: ", old_h.size()) # [20,50]
         #print("input size:", input.size()) # [20, 2]
@@ -59,10 +58,6 @@ class SubLSTMFunction(Function):
 		
         return h_t, c_t
         """
-        path_to_this = os.path.abspath(os.path.dirname(__file__))
-        sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-        sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
-        forward_cpp = load(name="forward", sources=[sublstm_cpp_path, sublstm_cu_path])
         # Perform forward pass
         ## TODO: look into .contiguous and how to use it less
         #print("input size 0: ", input.size())
@@ -73,7 +68,7 @@ class SubLSTMFunction(Function):
         old_h.contiguous()
         old_cell.contiguous()
         ## Without this second call to .contiguous on input we get an error?
-        outputs = forward_cpp.forward(input.contiguous(),
+        outputs = sublstm_cuda.forward(input.contiguous(),
                                       weights,
                                       bias,
                                       old_h,
@@ -87,14 +82,6 @@ class SubLSTMFunction(Function):
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
-        ## Need to see what @staticmethod keyword does..
-        ## and where to move the path stuff if wanting to only do it once
-        # Load/Compile the c++/cuda files
-        path_to_this = os.path.abspath(os.path.dirname(__file__))
-        sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-        sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
-        #print(sublstm_cpp_path)
-        backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
         #print(grad_h.size())
         #print(grad_cell.size())
         grad_h.cuda()
@@ -108,7 +95,7 @@ class SubLSTMFunction(Function):
             #sv.contiguous()
             #print(sv.device)
 
-        outputs = backward_cpp.backward(
+        outputs = sublstm_cuda.backward(
             grad_h.contiguous(),
             grad_cell.contiguous(),
             ctx.saved_variables[0].contiguous(),
