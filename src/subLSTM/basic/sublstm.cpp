@@ -109,6 +109,6 @@ std::vector<torch::Tensor> backward(
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &forward, "forward pass (cuda)");
+  //m.def("forward", &forward, "forward pass (cuda)");
   m.def("backward", &backward, "backward pass (cpp)");
 }
