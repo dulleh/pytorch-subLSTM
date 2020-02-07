@@ -214,7 +214,8 @@ criterion = nn.MSELoss()
 epochs, log_interval = args.epochs, args.log_interval
 loss_trace, best_loss = [], np.inf
 save_directory_name = '{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
-save_path = args.save + '/' + save_directory_name
+path_to_this = os.path.abspath(os.path.dirname(__file__))
+save_path = path_to_this + args.save + '/' + save_directory_name
 total_time = 0
 
 
