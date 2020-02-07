@@ -26,9 +26,9 @@ class SubLSTMFunction(Function):
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
         #"""
-        print("old_h size: ", old_h.size())
-        print("input size:", input.size())
-        X = torch.cat((old_h, input), 1)
+        print("old_h size: ", old_h.size()) #[20,50]
+        print("input size:", input.size()) # [20, 2]
+        X = torch.cat((old_h, input), 2)
         print("weights: ", weights.size())
         print("X: ", X.size())
         print("bias: ", bias.size())
