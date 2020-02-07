@@ -26,14 +26,14 @@ class SubLSTMFunction(Function):
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
         #"""
-        print("old_h size: ", old_h.size()) # [20,50]
-        print("input size:", input.size()) # [20, 2]
+        #print("old_h size: ", old_h.size()) # [20,50]
+        #print("input size:", input.size()) # [20, 2]
         X = torch.cat((old_h, input), 1)
-        print("weights: ", weights.size()) # [200, 52]
-        print("X: ", X.size()) # [20, 52]
-        print("bias: ", bias.size()) # [200]
+        #print("weights: ", weights.size()) # [200, 52]
+        #print("X: ", X.size()) # [20, 52]
+        #print("bias: ", bias.size()) # [200]
         gate_weights = bias + X.mm(weights.t()) # [20, 200]
-        print("gate_weights", gate_weights.size())
+        #print("gate_weights", gate_weights.size())
         batch_size = old_cell.size(0) # 20
         state_size = old_cell.size(1) # 50
         gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size)) # [20, 5, 50]
@@ -43,19 +43,19 @@ class SubLSTMFunction(Function):
         out_gate = out_gate.squeeze()
         z_t = z_t.squeeze()
         f_gate = f_gate.squeeze()
-        print("in_gate", in_gate.size())
-        print("out_gate", out_gate.size())
-        print("z_t", z_t.size())
-        print("f_gate", f_gate.size())
+        #print("in_gate", in_gate.size())
+        #print("out_gate", out_gate.size())
+        #print("z_t", z_t.size())
+        #print("f_gate", f_gate.size())
         c_t = old_cell * f_gate + z_t - in_gate
         h_t = torch.sigmoid(c_t) - out_gate
         
         variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_t] + [X] + [gates] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
         
-        print("output h_t: ", h_t.size())
-        print("c_t: ", c_t.size())
-        print("old_cell: ", old_cell.size())
+        #print("output h_t: ", h_t.size())
+        #print("c_t: ", c_t.size())
+        #print("old_cell: ", old_cell.size())
 		
         return h_t, c_t
         """
@@ -138,12 +138,12 @@ class SubLSTMCudaCell(nn.Module):
     
     #@staticmethod
     def forward(self, input, state):
-        print('CELL input_size: {}'.format(input.size()))
+        #print('CELL input_size: {}'.format(input.size()))
         #print('CELL weights_size: {}'.format(self.weights.size()))
         #if self.bias is not None:
             #print('bias_size: {}'.format(self.bias.size()))
-        for i, st in enumerate(state):
-            print('state[{}]_size {}'.format(i, st.size()))
+        #for i, st in enumerate(state):
+         #   print('state[{}]_size {}'.format(i, st.size()))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
 
