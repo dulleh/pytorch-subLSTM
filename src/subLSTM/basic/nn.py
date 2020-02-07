@@ -102,11 +102,11 @@ class SubLSTMFunction(Function):
         print(grad_h.device)
         print(grad_cell.device)
         for i, sv in enumerate(ctx.saved_variables):
-            print('saved_var[{}]_size {}'.format(i, sv.size()))
+            #print('saved_var[{}]_size {}'.format(i, sv.size()))
             sv.cuda()
-        for i, sv in enumerate(ctx.saved_variables):
+        #for i, sv in enumerate(ctx.saved_variables):
             #sv.contiguous()
-            print(sv.device)
+            #print(sv.device)
 
         outputs = backward_cpp.backward(
             grad_h.contiguous(),
