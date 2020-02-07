@@ -53,8 +53,8 @@ class SubLSTMFunction(Function):
         variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_t] + [X] + [gates] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
         
-        print("output h_t: ", h_t.size())
-        print("c_t: ", c_t.size())
+        #print("output h_t: ", h_t.size())
+        #print("c_t: ", c_t.size())
         #print("old_cell: ", old_cell.size())
 		
         return h_t, c_t
@@ -93,14 +93,14 @@ class SubLSTMFunction(Function):
         path_to_this = os.path.abspath(os.path.dirname(__file__))
         sublstm_cpp_path = os.path.join(path_to_this, "sublstm.cpp")
         sublstm_cu_path = os.path.join(path_to_this, "sublstm.cu")
-        print(sublstm_cpp_path)
+        #print(sublstm_cpp_path)
         backward_cpp = load(name="backward", sources=[sublstm_cpp_path, sublstm_cu_path])
-        print(grad_h.size())
-        print(grad_cell.size())
+        #print(grad_h.size())
+        #print(grad_cell.size())
         grad_h.cuda()
         grad_cell.cuda()
-        print(grad_h.device)
-        print(grad_cell.device)
+        #print(grad_h.device)
+        #print(grad_cell.device)
         for i, sv in enumerate(ctx.saved_variables):
             #print('saved_var[{}]_size {}'.format(i, sv.size()))
             sv.cuda()
