@@ -86,7 +86,7 @@ std::vector<torch::Tensor> backward(
 
   // is it enough to just do d_sigmoid(gate_weights)?
   // check if there is a built in torch::d_sigmoid function?
-  torch::Tensor gates = gate_weights.chunk(4, 1);
+  std::vector<torch::Tensor> gates = gate_weights.chunk(4, 1);
   d_input_gate *= d_sigmoid(gates[0]);
   d_output_gate *= d_sigmoid(gates[1]);
   d_candidate_cell *= d_sigmoid(gates[2]);
@@ -100,7 +100,7 @@ std::vector<torch::Tensor> backward(
   torch::Tensor d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
 
   torch::Tensor d_X = d_gates.mm(weights);
-  const torch::Tensor state_size = grad_h.size(1);
+  const int state_size = grad_h.size(1);
   torch::Tensor d_old_h = d_X.slice(1, 0, state_size);
   torch::Tensor d_input = d_X.slice(1, state_size);
 
