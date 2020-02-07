@@ -4,6 +4,8 @@
 # Note: To use the 'upload' functionality of this file, you must:
 #   $ pip install twine
 
+"""
+
 import io
 import os
 import sys
@@ -53,14 +55,14 @@ with open(os.path.join(here, 'src', '__version__.py')) as f:
 
 
 class UploadCommand(Command):
-    """Support setup.py upload."""
+    #Support setup.py upload
 
     description = 'Build and publish the package.'
     user_options = []
 
     @staticmethod
     def status(s):
-        """Prints things in bold."""
+        # Prints things in bold.
         print('\033[1m{0}\033[0m'.format(s))
 
     def initialize_options(self):
@@ -130,3 +132,27 @@ setup(
         'build_ext': BuildExtension
     },
 )
+"""
+
+from setuptools import setup
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
+PACKAGES = [
+    'subLSTM'
+]
+
+PACKAGE_DIR = {'' : 'src'}
+
+setup(
+    name='torch-sublstm',
+    packages=PACKAGES,
+    package_dir=PACKAGE_DIR,
+    ext_modules=[
+        CUDAExtension('sublstm_cuda', [
+            'sublstm.cpp',
+            'sublstm.cu',
+        ]),
+    ],
+    cmdclass={
+        'build_ext': BuildExtension
+    })
