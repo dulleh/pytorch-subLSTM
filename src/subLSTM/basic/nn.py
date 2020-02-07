@@ -65,9 +65,9 @@ class SubLSTMFunction(Function):
         forward_cpp = load(name="forward", sources=[sublstm_cpp_path, sublstm_cu_path])
         # Perform forward pass
         ## TODO: look into .contiguous and how to use it less
-        print("input size 0: ", input.size())
+        #print("input size 0: ", input.size())
         input.contiguous()
-        print("next: ", input.size())
+        #print("next: ", input.size())
         weights.contiguous()
         bias.contiguous()
         old_h.contiguous()
