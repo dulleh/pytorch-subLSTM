@@ -215,7 +215,7 @@ epochs, log_interval = args.epochs, args.log_interval
 loss_trace, best_loss = [], np.inf
 save_directory_name = '{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
 path_to_this = os.path.abspath(os.path.dirname(__file__))
-save_path = path_to_this + args.save + '/' + save_directory_name
+save_path = os.path.join(path_to_this, args.save, save_directory_name)
 total_time = 0
 
 
