@@ -29,7 +29,7 @@ class SubLSTMFunction(Function):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
-        #"""
+        """
         print("input", input)
         print("weights", weights)
         print("bias", bias)
@@ -78,8 +78,10 @@ class SubLSTMFunction(Function):
         variables = outputs[1:] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
 
+        #print("output h_t", new_h)
+        #print("cell c_t", new_cell)
         return new_h, new_cell
-        """
+        #"""
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
