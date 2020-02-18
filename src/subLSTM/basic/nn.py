@@ -29,37 +29,32 @@ class SubLSTMFunction(Function):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
-        """
-        #print("old_h size: ", old_h.size()) # [20,50]
-        #print("input size:", input.size()) # [20, 2]
+        #"""
+        print("input", input)
+        print("weights", weights)
+        print("bias", bias)
+        print("old_h", old_h)
+        print("old_cell", old_cell)
+
         X = torch.cat((old_h, input), 1)
-        #print("weights: ", weights.size()) # [200, 52]
-        #print("X: ", X.size()) # [20, 52]
-        #print("bias: ", bias.size()) # [200]
-        gate_weights = bias + X.mm(weights.t()) # [20, 200]
-        #print("gate_weights", gate_weights.size())
-        batch_size = old_cell.size(0) # 20
-        state_size = old_cell.size(1) # 50
-        gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size)) # [20, 5, 50]
+        gate_weights = bias + X.mm(weights.t())
+        batch_size = old_cell.size(0)
+        state_size = old_cell.size(1)
+        gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size))
 
         in_gate, out_gate, z_t, f_gate = gates.chunk(4, 1)
         in_gate = in_gate.squeeze()
         out_gate = out_gate.squeeze()
         z_t = z_t.squeeze()
         f_gate = f_gate.squeeze()
-        #print("in_gate", in_gate.size())
-        #print("out_gate", out_gate.size())
-        #print("z_t", z_t.size())
-        #print("f_gate", f_gate.size())
         c_t = old_cell * f_gate + z_t - in_gate
         h_t = torch.sigmoid(c_t) - out_gate
 
         variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_t] + [X] + [gates] + [weights] + [old_cell]
         ctx.save_for_backward(*variables)
 
-        #print("output h_t: ", h_t.size())
-        #print("c_t: ", c_t.size())
-        #print("old_cell: ", old_cell.size())
+        print("output h_t", h_t)
+        print("cell c_t", c_t)
 
         return h_t, c_t
         """
@@ -84,7 +79,7 @@ class SubLSTMFunction(Function):
         ctx.save_for_backward(*variables)
 
         return new_h, new_cell
-        #"""
+        """
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
@@ -135,17 +130,26 @@ class SubLSTMCudaCell(nn.Module):
         gate_size = 4 * state_size
         input_layer = nn.Linear(input_size, gate_size, bias=bias)
         recurrent_layer = nn.Linear(state_size, gate_size, bias=bias)
+        # ORDER is important!!
         input_layer.reset_parameters()
         recurrent_layer.reset_parameters()
+        input_layer.reset_parameters()
+        recurrent_layer.reset_parameters()
+
         input_weights = input_layer.weight.data
+        input_bias = input_layer.bias.data
         recurrent_weights = recurrent_layer.weight.data
+        recurrent_bias = recurrent_layer.bias.data
         weightz = torch.cat((recurrent_weights, input_weights), 1)
 
         self.state_size = state_size
         self.weights = nn.Parameter(weightz)
-        self.bias = nn.Parameter(torch.Tensor(4 * state_size)) if bias else None
+        # Check if it's correct to just add them
+        self.bias = nn.Parameter(input_bias + recurrent_bias) if bias else None
 
         self.reset_parameters()
+        #self.flatten_parameters()
+
 
     def reset_parameters(self):
         for module in self.children():
@@ -239,11 +243,6 @@ class fixSubLSTMCell(nn.Module):
 class SubLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True,
                     cell_type='vanilla', batch_first=False, dropout=0.0):
-        print(SubLSTM)
-        print(self.__class__)
-        print(isinstance(self, SubLSTM))
-
-        #self.as_super = super(SubLSTM, self)
         super().__init__()
 
         # Uncomment to get layers of different size. Disable for consistency with LSTM
