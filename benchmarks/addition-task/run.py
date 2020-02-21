@@ -104,6 +104,10 @@ args = parser.parse_args()
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
+# additional parameters that need to be removed if you want non-deterministic behaviour
+# https://pytorch.org/docs/stable/notes/randomness.html
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 if args.cuda and torch.cuda.is_available():
     torch.cuda.manual_seed(args.seed)
     device = torch.device('cuda')
@@ -137,12 +141,15 @@ class BatchGenerator:
 
     def next_batch(self):
         batch_size, min_arg, max_arg = self.batch_size, self.min_arg, self.max_arg
-        inputs = np.random.uniform(
+
+        random_state = np.random.RandomState(seed=12)
+
+        inputs = random_state.uniform(
             low=min_arg, high=max_arg, size=(batch_size, seq_len, 2))
         inputs[:, :, 1] = 0
 
         # Neat trick to sample the positions to unmask
-        mask = np.random.rand(batch_size, seq_len).argsort(axis=1)[:,:num_addends]
+        mask = random_state.rand(batch_size, seq_len).argsort(axis=1)[:,:num_addends]
         mask.sort(axis=1)
 
         # Mask is in the wrong shape (batch_size, num_addends) for slicing

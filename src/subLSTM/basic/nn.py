@@ -174,6 +174,7 @@ class SubLSTMCudaCell(nn.Module):
 class SubLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True):
         super(SubLSTMCell, self).__init__()
+
         # Set the parameters
         self.input_size = input_size
         self.hidden_size = hidden_size

@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import time
 
+from subLSTM.basic.nn import SubLSTMCell, SubLSTMCudaCell
 
 def detach_hidden_state(hidden_state):
     """
@@ -19,7 +20,6 @@ def detach_hidden_state(hidden_state):
     elif isinstance(hidden_state, tuple):
         return tuple(detach_hidden_state(h) for h in hidden_state)
     return None
-
 
 def train(model, data_loader, criterion, optimizer, grad_clip,
         track_hidden, log_interval, device, verbose):
@@ -41,19 +41,49 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         # Set all gradients to zero.
         optimizer.zero_grad()
 
-        # If reusing hidden states, detach them from the computation graph 
-        # of the previous batch. Using the previous value may speed up training 
+        # If reusing hidden states, detach them from the computation graph
+        # of the previous batch. Using the previous value may speed up training
         # but detaching is needed to avoid backprogating to the start of training.
         # hidden = detach_hidden_state(hidden) if track_hidden else None
 
         # Forward and backward steps
         outputs, hidden = model(inputs)
+
+        #remove this
+        outputs.retain_grad()
+        for (h, t) in hidden:
+            h.retain_grad()
+            t.retain_grad()
+
         loss = criterion(outputs, labels)
 
         loss.backward()
 
+
+        for module in model.rnn.children():
+            if isinstance(module, SubLSTMCell):
+                print("dE/dh", outputs.grad)
+                (h, t) = hidden
+                print("dE/dhidden??", h.grad)
+                print("dE/dhidden????", t.grad)
+
+        if (i == 0):
+            for module in model.rnn.children():
+                if isinstance(module, SubLSTMCell):
+                    print("weights.grad: ")
+                    print(torch.cat((module.recurrent_layer.weight.grad,  module.input_layer.weight.grad), 1))
+                    # bias is significantly diff for i = 0
+                    print("bias.grad")
+                    print(module.input_layer.bias.grad + module.recurrent_layer.bias.grad)
+                elif isinstance(module, SubLSTMCudaCell):
+                    print("weights.grad: ")
+                    print(module.weights.grad)
+                    print("bias.grad")
+                    print(module.bias.grad)
+
         # Clipping (helps with exploding gradients) and then gradient descent
         nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+
         optimizer.step()
 
         running_loss += loss.item()
