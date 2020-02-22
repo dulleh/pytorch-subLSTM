@@ -48,24 +48,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         # Forward and backward steps
         outputs, hidden = model(inputs)
-
-        #remove this
-        outputs.retain_grad()
-        for (h, t) in hidden:
-            h.retain_grad()
-            t.retain_grad()
-
         loss = criterion(outputs, labels)
 
         loss.backward()
-
-
-        for module in model.rnn.children():
-            if isinstance(module, SubLSTMCell):
-                print("dE/dh", outputs.grad)
-                (h, t) = hidden
-                print("dE/dhidden??", h.grad)
-                print("dE/dhidden????", t.grad)
 
         if (i == 0):
             for module in model.rnn.children():

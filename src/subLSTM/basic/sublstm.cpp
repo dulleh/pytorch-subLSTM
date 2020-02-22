@@ -67,38 +67,40 @@ std::vector<torch::Tensor> sublstm_backward(
   CHECK_INPUT(gate_weights);
   CHECK_INPUT(weights);
   CHECK_INPUT(old_cell);
+
   std::cout << "dE/dh" << grad_h << std::endl;
   std::cout << "grad_cell" << grad_cell << std::endl;
   std::cout << "new_cell" << new_cell << std::endl;
   std::cout << "input_gate" << input_gate << std::endl;
   std::cout << "output_gate" << output_gate << std::endl;
+  std::cout << "forget_gate" << forget_gate << std::endl;
   std::cout << "candidate_cell" << candidate_cell << std::endl;
   std::cout << "X" << X << std::endl;
   std::cout << "gate_weights" << gate_weights << std::endl;
   std::cout << "weights" << weights << std::endl;
   std::cout << "old_cell" << old_cell << std::endl;
 
-  torch::Tensor d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
+  // I don't get this one
   torch::Tensor d_new_cell = (grad_h * d_sigmoid(new_cell)) + (grad_cell * forget_gate); // needs to be f_(t+1)?
-  // subLSTM definition that ht = sigmoid(ct) - ot so delta ct = delta ht * (dht/dct)
 
   torch::Tensor d_old_cell = d_new_cell * forget_gate; // dE/dct-1 = dE/dct * dct/dct-1 = delta(ct) * ft
-  // is forget_gate = ft? - yes.
-  torch::Tensor d_candidate_cell = d_new_cell; // this is delta(zt)
+
   torch::Tensor d_input_gate = -d_new_cell; // this is delta(it)
+  torch::Tensor d_output_gate = -grad_h; // ht = sigmoid(ct) - ot (where ot is post activation)
+  torch::Tensor d_candidate_cell = d_new_cell; // this is delta(zt)
   torch::Tensor d_forget_gate = d_new_cell * old_cell;
 
   torch::Tensor d_gates =
         torch::cat({d_input_gate, d_output_gate, d_candidate_cell, d_forget_gate}, 1);
 
-  torch::Tensor gates = d_sigmoid(gate_weights.view(d_gates.sizes()));
+  torch::Tensor d_sigm_gates = d_sigmoid(gate_weights.view(d_gates.sizes()));
 
-  d_gates *= gates;
+  d_gates *= d_sigm_gates;
 
   torch::Tensor d_weights = d_gates.t().mm(X);
+
   // sum across rows i.e. sum of columns,
   // keepdim=true means we're getting a result that has 1 row, columns same as before
-
   torch::Tensor d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
 
   torch::Tensor d_X = d_gates.mm(weights);

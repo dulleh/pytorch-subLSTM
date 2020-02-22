@@ -18,7 +18,6 @@ sys.path.insert(0, '../')
 from wrappers import init_model
 from utils import train, test
 
-
 ########################################################################################
 # PARSE THE INPUT
 ########################################################################################
@@ -101,6 +100,8 @@ args = parser.parse_args()
 ########################################################################################
 # SETTING UP THE DEVICE AND SEED
 ########################################################################################
+
+torch.cuda.empty_cache()
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
