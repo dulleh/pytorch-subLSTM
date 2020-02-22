@@ -105,8 +105,8 @@ std::vector<torch::Tensor> sublstm_backward(
 
   torch::Tensor d_X = d_gates.mm(weights);
   const int state_size = grad_h.size(1);
-  torch::Tensor d_old_h = d_X.slice(1, 0, state_size);
-  torch::Tensor d_input = d_X.slice(1, state_size);
+  torch::Tensor d_old_h = d_X.slice(1, 0, state_size); // first state_size columns
+  torch::Tensor d_input = d_X.slice(1, state_size); // from column [state_size + 1] to the end
 
   return {d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates};
 }
