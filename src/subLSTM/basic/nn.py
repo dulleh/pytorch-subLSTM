@@ -22,8 +22,8 @@ class SubLSTMFunction(Function):
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
         forward_cpp = load(name="forward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-        
-        outputs = forward_cpp.forward(input.contiguous(),
+
+        outputs = forward_cpp.forward(input,
                                       weights,
                                       bias,
                                       old_h,
@@ -256,7 +256,8 @@ class SubLSTM(nn.Module):
                 hx.append((hidden, hidden))
 
         if self.batch_first:
-            input = input.transpose(0, 1)
+            input = input.transpose(0, 1).contiguous()
+        print(input.device)
 
         timesteps = input.size(0)
         outputs = [input[i] for i in range(timesteps)]

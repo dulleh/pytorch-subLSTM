@@ -36,7 +36,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
         inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
+
+        # The expectation is that this should be the case anyway and if make sure it is at intialisation.
+        #inputs, labels = inputs.to(device), labels.to(device)
 
         # Set all gradients to zero.
         optimizer.zero_grad()
@@ -68,7 +70,7 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
                     print("bias.grad")
                     print(module.bias.grad)
         """
-            
+
         # Clipping (helps with exploding gradients) and then gradient descent
         nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
 

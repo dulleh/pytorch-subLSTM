@@ -1565,3 +1565,24 @@ cuda
 				 Training ended:
 				 	test loss 0.6144
 				 (base) bash-4.2$
+
+
+
+
+
+
+
+
+
+
+
+python run.py --timing --model=subLSTM --cuda --batch-size=4 --seq-length=10 --nhid=350 --epochs=5 --training-size=400
+ 5.139s average time
+
+
+cuda:
+19.790 + 31.161 + 23.909 + 20.240
+so it's quite variable. this suggests there's something else going on. e.g. incorrect setup env
+
+changing inputs/targets to be initiialized on cuda:
+19.649 + 21.641 + 17.027 + 21.767

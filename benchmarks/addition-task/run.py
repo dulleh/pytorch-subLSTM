@@ -157,8 +157,8 @@ class BatchGenerator:
         inputs[range(batch_size), mask.T, 1] = 1
         targets = np.sum(inputs[:, :, 0] * (inputs[:, :, 1]), axis=1).reshape(-1, 1)
 
-        inputs = torch.as_tensor(inputs, dtype=torch.float)
-        targets = torch.as_tensor(targets, dtype=torch.float)
+        inputs = torch.as_tensor(inputs, dtype=torch.float, device='cuda')
+        targets = torch.as_tensor(targets, dtype=torch.float, device='cuda')
 
         return inputs, targets
 
