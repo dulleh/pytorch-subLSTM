@@ -67,7 +67,7 @@ std::vector<torch::Tensor> sublstm_backward(
   CHECK_INPUT(gate_weights);
   CHECK_INPUT(weights);
   CHECK_INPUT(old_cell);
-
+  /**
   std::cout << "dE/dh" << grad_h << std::endl;
   std::cout << "grad_cell" << grad_cell << std::endl;
   std::cout << "new_cell" << new_cell << std::endl;
@@ -79,9 +79,9 @@ std::vector<torch::Tensor> sublstm_backward(
   std::cout << "gate_weights" << gate_weights << std::endl;
   std::cout << "weights" << weights << std::endl;
   std::cout << "old_cell" << old_cell << std::endl;
-
+  **/
   // I don't get this one
-  torch::Tensor d_new_cell = (grad_h * d_sigmoid(new_cell)) + (grad_cell * forget_gate); // needs to be f_(t+1)?
+  torch::Tensor d_new_cell = (grad_h * d_sigmoid(new_cell)) + (grad_cell);
 
   torch::Tensor d_old_cell = d_new_cell * forget_gate; // dE/dct-1 = dE/dct * dct/dct-1 = delta(ct) * ft
 

@@ -52,7 +52,8 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         loss.backward()
 
-        if (i == 0):
+
+        if (i == 0) and verbose:
             for module in model.rnn.children():
                 if isinstance(module, SubLSTMCell):
                     print("weights.grad: ")
