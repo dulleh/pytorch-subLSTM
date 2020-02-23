@@ -38,24 +38,9 @@ class SubLSTMFunction(Function):
     def backward(ctx, grad_h, grad_cell):
         backward_cpp = load(name="backward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
 
-        grad_h.cuda()
-        grad_cell.cuda()
-        for i, sv in enumerate(ctx.varies):
-            sv.cuda()
+        grad_h = grad_h.contiguous()
 
-        outputs = backward_cpp.backward(
-            grad_h.contiguous(),
-            grad_cell.contiguous(),
-            ctx.varies[0].contiguous(),
-            ctx.varies[1].contiguous(),
-            ctx.varies[2].contiguous(),
-            ctx.varies[3].contiguous(),
-            ctx.varies[4].contiguous(),
-            ctx.varies[5].contiguous(),
-            ctx.varies[6].contiguous(),
-            ctx.varies[7].contiguous(),
-            ctx.varies[8].contiguous()
-            )
+        outputs = backward_cpp.backward(grad_h, grad_cell, *ctx.varies)
 
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
@@ -257,7 +242,6 @@ class SubLSTM(nn.Module):
 
         if self.batch_first:
             input = input.transpose(0, 1).contiguous()
-        print(input.device)
 
         timesteps = input.size(0)
         outputs = [input[i] for i in range(timesteps)]
