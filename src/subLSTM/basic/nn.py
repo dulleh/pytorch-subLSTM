@@ -19,92 +19,29 @@ class SubLSTMFunction(Function):
     cpp_path = os.path.join(path_to_this, "sublstm.cpp")
     cu_path = os.path.join(path_to_this, "sublstm.cu")
 
-    # Remember that old_h is the output from the previous cell i.e. h_(t-1)
-    # Likewise, old_cell is C_(t-1). Both of these get updated every time step
-    # The parameter weights, however, stays the same until it is updated in the
-    # backwards pass. It contains 4 gates: input_gate, output_gate,
-    #                                      input_tanh_gate, forget_gate
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
-        ## Need to see what @staticmethod keyword does..
-        ## and where to move the path stuff if wanting to only do it once
-        # Load/Compile the c++/cuda files
-
-        #print("input", input)
-        """
-        print("weights", weights)
-        print("bias", bias)
-        print("old_h", old_h)
-        print("old_cell", old_cell)
-
-        X = torch.cat((old_h, input), 1)
-        gate_weights = bias + X.mm(weights.t())
-        batch_size = old_cell.size(0)
-        state_size = old_cell.size(1)
-        gates = torch.sigmoid(gate_weights.reshape(batch_size, 4, state_size))
-
-        in_gate, out_gate, z_t, f_gate = gates.chunk(4, 1)
-        in_gate = in_gate.squeeze()
-        out_gate = out_gate.squeeze()
-        z_t = z_t.squeeze()
-        f_gate = f_gate.squeeze()
-        c_t = old_cell * f_gate + z_t - in_gate
-        h_t = torch.sigmoid(c_t) - out_gate
-
-        variables = [c_t] + [in_gate] + [out_gate] + [f_gate] + [z_t] + [X] + [gates] + [weights] + [old_cell]
-        ctx.save_for_backward(*variables)
-
-        print("output h_t", h_t)
-        print("cell c_t", c_t)
-
-        return h_t, c_t
-        """
         forward_cpp = load(name="forward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-        # Perform forward pass
-        ## TODO: look into .contiguous and how to use it less
-        #print("input size 0: ", input.size())
-        input.contiguous()
-        #print("next: ", input.size())
-        weights.contiguous()
-        bias.contiguous()
-        old_h.contiguous()
-        old_cell.contiguous()
-        ## Without this second call to .contiguous on input we get an error?
+        
         outputs = forward_cpp.forward(input.contiguous(),
                                       weights,
                                       bias,
                                       old_h,
                                       old_cell)
         new_h, new_cell = outputs[:2]
-        variables = outputs[1:] + [weights] + [old_cell]
-        #ctx.save_for_backward(*variables) # may be wrong way to do this - possibly should be doing e.g. ctx.weights = weights
+
         ctx.varies = outputs[1:] + [weights] + [old_cell]
 
-        #print("output h_t", new_h)
-        #print("cell c_t", new_cell)
         return new_h, new_cell
-        #"""
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
-        ## Need to see what @staticmethod keyword does..
-        ## and where to move the path stuff if wanting to only do it once
-        # Load/Compile the c++/cuda files
-        #print(sublstm_cpp_path)
         backward_cpp = load(name="backward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-        #print(grad_h.size())
-        #print(grad_cell.size())
+
         grad_h.cuda()
         grad_cell.cuda()
-        #print(grad_h.device)
-        #print(grad_cell.device)
         for i, sv in enumerate(ctx.varies):
-        #for i, sv in enumerate(ctx.saved_variables):
-            #print('saved_var[{}]_size {}'.format(i, sv.size()))
             sv.cuda()
-        #for i, sv in enumerate(ctx.saved_variables):
-            #sv.contiguous()
-            #print(sv.device)
 
         outputs = backward_cpp.backward(
             grad_h.contiguous(),
@@ -119,6 +56,7 @@ class SubLSTMFunction(Function):
             ctx.varies[7].contiguous(),
             ctx.varies[8].contiguous()
             )
+
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
@@ -127,9 +65,6 @@ class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
         super(SubLSTMCudaCell, self).__init__()
         self.input_size = input_size
-
-        #print("param: input_size: {}".format(input_size))
-        #print("param: state_size: {}".format(state_size))
 
         # do this to have the same initialisation as non-cuda sublstm (for testing)
         gate_size = 4 * state_size
@@ -144,12 +79,10 @@ class SubLSTMCudaCell(nn.Module):
         input_weights = input_layer.weight.data
         input_bias = input_layer.bias.data
         recurrent_weights = recurrent_layer.weight.data
-        #recurrent_bias = recurrent_layer.bias.data
         weightz = torch.cat((recurrent_weights, input_weights), 1)
 
         self.state_size = state_size
         self.weights = nn.Parameter(weightz)
-        # Check if it's correct to just add them
         self.bias = nn.Parameter(input_bias) if bias else None
 
         self.reset_parameters()
@@ -163,14 +96,7 @@ class SubLSTMCudaCell(nn.Module):
             except AttributeError:
                 pass
 
-    #@staticmethod
     def forward(self, input, state):
-        #print('CELL input_size: {}'.format(input.size()))
-        #print('CELL weights_size: {}'.format(self.weights.size()))
-        #if self.bias is not None:
-            #print('bias_size: {}'.format(self.bias.size()))
-        #for i, st in enumerate(state):
-         #   print('state[{}]_size {}'.format(i, st.size()))
         return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
 
 
@@ -185,9 +111,6 @@ class SubLSTMCell(nn.Module):
 
         gate_size = 4 * hidden_size
 
-        #print("input_size: {}".format(input_size))
-        #print("hidden_size: {}".format(hidden_size))
-
         self.input_layer = nn.Linear(input_size, gate_size, bias=bias)
         self.recurrent_layer = nn.Linear(hidden_size, gate_size, bias=False)
 
@@ -200,12 +123,7 @@ class SubLSTMCell(nn.Module):
             except AttributeError:
                 pass
 
-    #@staticmethod
     def forward(self, input: torch.Tensor, hx):
-        #print('CELL input_size: {}'.format(input.size()))
-        #for i, st in enumerate(hx):
-            #print('state[{}]_size {}'.format(i, st.size()))
-        #print("input", input)
         return sublstm(
             input, hx,
             self.input_layer,
@@ -236,7 +154,6 @@ class fixSubLSTMCell(nn.Module):
             except AttributeError:
                 pass
 
-    #@staticmethod
     def forward(self, input, hx):
         return fsublstm(
             input, hx,

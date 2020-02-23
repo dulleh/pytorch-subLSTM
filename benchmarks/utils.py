@@ -52,7 +52,7 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         loss.backward()
 
-
+        """
         if (i == 2) and verbose:
             for module in model.rnn.children():
                 if isinstance(module, SubLSTMCell):
@@ -67,7 +67,8 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
                     print(module.weights.grad)
                     print("bias.grad")
                     print(module.bias.grad)
-
+        """
+            
         # Clipping (helps with exploding gradients) and then gradient descent
         nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
 
