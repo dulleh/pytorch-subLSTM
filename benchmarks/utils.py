@@ -53,14 +53,15 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         loss.backward()
 
 
-        if (i == 0) and verbose:
+        if (i == 2) and verbose:
             for module in model.rnn.children():
                 if isinstance(module, SubLSTMCell):
                     print("weights.grad: ")
                     print(torch.cat((module.recurrent_layer.weight.grad,  module.input_layer.weight.grad), 1))
                     # bias is significantly diff for i = 0
                     print("bias.grad")
-                    print(module.input_layer.bias.grad + module.recurrent_layer.bias.grad)
+                    #print(module.input_layer.bias.grad + module.recurrent_layer.bias.grad)
+                    print(module.input_layer.bias.grad)
                 elif isinstance(module, SubLSTMCudaCell):
                     print("weights.grad: ")
                     print(module.weights.grad)

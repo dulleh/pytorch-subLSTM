@@ -48,7 +48,7 @@ namespace {
 		new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
 	  }
 	}
-	
+
 }
 
 std::vector<torch::Tensor> forward_cuda(

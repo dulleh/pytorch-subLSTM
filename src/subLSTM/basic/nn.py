@@ -29,8 +29,9 @@ class SubLSTMFunction(Function):
         ## Need to see what @staticmethod keyword does..
         ## and where to move the path stuff if wanting to only do it once
         # Load/Compile the c++/cuda files
+
+        #print("input", input)
         """
-        print("input", input)
         print("weights", weights)
         print("bias", bias)
         print("old_h", old_h)
@@ -76,7 +77,8 @@ class SubLSTMFunction(Function):
                                       old_cell)
         new_h, new_cell = outputs[:2]
         variables = outputs[1:] + [weights] + [old_cell]
-        ctx.save_for_backward(*variables)
+        #ctx.save_for_backward(*variables) # may be wrong way to do this - possibly should be doing e.g. ctx.weights = weights
+        ctx.varies = outputs[1:] + [weights] + [old_cell]
 
         #print("output h_t", new_h)
         #print("cell c_t", new_cell)
@@ -96,7 +98,8 @@ class SubLSTMFunction(Function):
         grad_cell.cuda()
         #print(grad_h.device)
         #print(grad_cell.device)
-        for i, sv in enumerate(ctx.saved_variables):
+        for i, sv in enumerate(ctx.varies):
+        #for i, sv in enumerate(ctx.saved_variables):
             #print('saved_var[{}]_size {}'.format(i, sv.size()))
             sv.cuda()
         #for i, sv in enumerate(ctx.saved_variables):
@@ -106,16 +109,16 @@ class SubLSTMFunction(Function):
         outputs = backward_cpp.backward(
             grad_h.contiguous(),
             grad_cell.contiguous(),
-            ctx.saved_variables[0].contiguous(),
-            ctx.saved_variables[1].contiguous(),
-            ctx.saved_variables[2].contiguous(),
-            ctx.saved_variables[3].contiguous(),
-            ctx.saved_variables[4].contiguous(),
-            ctx.saved_variables[5].contiguous(),
-            ctx.saved_variables[6].contiguous(),
-            ctx.saved_variables[7].contiguous(),
-            ctx.saved_variables[8].contiguous()
-        )
+            ctx.varies[0].contiguous(),
+            ctx.varies[1].contiguous(),
+            ctx.varies[2].contiguous(),
+            ctx.varies[3].contiguous(),
+            ctx.varies[4].contiguous(),
+            ctx.varies[5].contiguous(),
+            ctx.varies[6].contiguous(),
+            ctx.varies[7].contiguous(),
+            ctx.varies[8].contiguous()
+            )
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
@@ -131,7 +134,7 @@ class SubLSTMCudaCell(nn.Module):
         # do this to have the same initialisation as non-cuda sublstm (for testing)
         gate_size = 4 * state_size
         input_layer = nn.Linear(input_size, gate_size, bias=bias)
-        recurrent_layer = nn.Linear(state_size, gate_size, bias=bias)
+        recurrent_layer = nn.Linear(state_size, gate_size, bias=False)
         # ORDER is important!!
         input_layer.reset_parameters()
         recurrent_layer.reset_parameters()
@@ -141,13 +144,13 @@ class SubLSTMCudaCell(nn.Module):
         input_weights = input_layer.weight.data
         input_bias = input_layer.bias.data
         recurrent_weights = recurrent_layer.weight.data
-        recurrent_bias = recurrent_layer.bias.data
+        #recurrent_bias = recurrent_layer.bias.data
         weightz = torch.cat((recurrent_weights, input_weights), 1)
 
         self.state_size = state_size
         self.weights = nn.Parameter(weightz)
         # Check if it's correct to just add them
-        self.bias = nn.Parameter(input_bias + recurrent_bias) if bias else None
+        self.bias = nn.Parameter(input_bias) if bias else None
 
         self.reset_parameters()
         #self.flatten_parameters()
@@ -186,7 +189,7 @@ class SubLSTMCell(nn.Module):
         #print("hidden_size: {}".format(hidden_size))
 
         self.input_layer = nn.Linear(input_size, gate_size, bias=bias)
-        self.recurrent_layer = nn.Linear(hidden_size, gate_size, bias=bias)
+        self.recurrent_layer = nn.Linear(hidden_size, gate_size, bias=False)
 
         self.reset_parameters()
 
@@ -202,6 +205,7 @@ class SubLSTMCell(nn.Module):
         #print('CELL input_size: {}'.format(input.size()))
         #for i, st in enumerate(hx):
             #print('state[{}]_size {}'.format(i, st.size()))
+        #print("input", input)
         return sublstm(
             input, hx,
             self.input_layer,
@@ -263,6 +267,7 @@ class SubLSTM(nn.Module):
         self.__dict__.update(locals())
 
         # Use for bidirectional later
+        self.cell_type = cell_type
         suffix = ''
         if cell_type == 'fixed_forget':
             #layer_type = fixSubLSTMCell
