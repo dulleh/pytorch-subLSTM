@@ -18,114 +18,6 @@ sys.path.insert(0, '../')
 from wrappers import init_model
 from utils import train, test
 
-########################################################################################
-# PARSE THE INPUT
-########################################################################################
-
-parser = argparse.ArgumentParser(description='Addition task')
-
-# Model parameters
-parser.add_argument('--model', type=str, default='subLSTM',
-    help='RNN model to use. One of subLSTM|fix-subLSTM|LSTM|GRU|subLSTMCuda')
-parser.add_argument('--nlayers', type=int, default=1,
-    help='number of layers')
-parser.add_argument('--nhid', type=int, default=50,
-    help='number of hidden units per layer')
-parser.add_argument('--dropout', type=float, default=0.0,
-    help='drop probability for Bernoulli Dropout')
-parser.add_argument('--gact', type=str, default='relu',
-    help='gate activation function relu|sig')
-parser.add_argument('--gbias', type=float, default=0,
-    help='gating bias')
-parser.add_argument('--script', action='store_true', help='Use TorchScript version')
-
-# Data parameters
-parser.add_argument('--seq-length', type=int, default=50,
-    help='sequence length')
-parser.add_argument('--num-addends', type=int, default=2,
-    help='the number of addends to be unmasked in each sequence'
-    'must be less than the sequence length')
-parser.add_argument('--min-arg', type=float, default=0,
-    help='minimum value of the addends')
-parser.add_argument('--max-arg', type=float, default=1,
-    help='maximum value of the addends')
-parser.add_argument('--training-size', type=int, default=10000,
-    help='size of the randomly created training set')
-parser.add_argument('--testing-size', type=int, default=10000,
-    help='size of the randomly created test set')
-parser.add_argument('--train-val-split', type=float, default=0.2,
-    help='proportion of trainig data used for validation')
-parser.add_argument('--batch-size', type=int, default=50, metavar='N',
-    help='batch size')
-
-# Training parameters
-parser.add_argument('--epochs', type=int, default=40,
-    help='max number of training epochs')
-parser.add_argument('--optim', type=str, default='rmsprop',
-    help='gradient descent method,'
-    'supports adam|sparseadam|adamax|rmsprop|sgd|adagrad|adadelta')
-parser.add_argument('--lr', type=float, default=1e-4,
-    help='initial learning rate')
-parser.add_argument('--l2-norm', type=float, default=0,
-    help='weight of L2 norm')
-parser.add_argument('--clip', type=float, default=1,
-    help='gradient clipping')
-parser.add_argument('--track-hidden', action='store_true',
-    help='keep the hidden state values across a whole epoch of training')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-    help='report interval')
-
-# Replicability and storage
-parser.add_argument('--save', type=str,  default='results',
-    help='path to save the final model')
-parser.add_argument('--seed', type=int, default=18092,
-    help='random seed')
-
-# CUDA
-parser.add_argument('--cuda', action='store_true',
-    help='use CUDA')
-
-# Print options
-parser.add_argument('--verbose', action='store_true',
-    help='print the progress of training to std output.')
-parser.add_argument('--timing', action='store_true',
-    help='print average training times')
-
-# Testing
-parser.add_argument('--test', action='store_true',
-    help='test the loss trace against the relevant cached example')
-
-args = parser.parse_args()
-
-########################################################################################
-# SETTING UP THE DEVICE AND SEED
-########################################################################################
-
-torch.cuda.empty_cache()
-
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-# additional parameters that need to be removed if you want non-deterministic behaviour
-# https://pytorch.org/docs/stable/notes/randomness.html
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-if args.cuda and torch.cuda.is_available():
-    torch.cuda.manual_seed(args.seed)
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
-
-########################################################################################
-# CREATE THE DATA GENERATOR
-########################################################################################
-
-seq_len, num_addends = args.seq_length, args.num_addends
-min_arg, max_arg = args.min_arg, args.max_arg
-N, batch_size, test_size = args.training_size, args.batch_size, args.testing_size
-
-train_size = int(N * (1 - args.train_val_split))
-val_size = N - train_size
-
 class BatchGenerator:
     def __init__(self,  training_size, batch_size, min_arg, max_arg):
         self.min_arg = min_arg
@@ -162,181 +54,290 @@ class BatchGenerator:
 
         return inputs, targets
 
-training_data = BatchGenerator(train_size, batch_size, min_arg, max_arg)
-validation_data = BatchGenerator(val_size, val_size, min_arg, max_arg)
-test_data = BatchGenerator(test_size, test_size, min_arg, max_arg)
-
 ########################################################################################
-# CREATE THE MODEL
+# PARSE THE INPUT
 ########################################################################################
 
-input_size, hidden_size, responses = 2, args.nhid, 1
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Addition task')
 
-model = init_model(
-    model_type=args.model,
-    n_layers=args.nlayers, hidden_size=args.nhid,
-    input_size=input_size, output_size=responses, class_task=False,
-    device=device,
-    dropout=args.dropout,
-    script=args.script
-)
-# model = nn.Sequential(
-#     SubLSTM(input_size=2, hidden_size=50,num_layers=1, bias=True, batch_first=True),
-#     nn.Linear(50, 1)
-# )
+    # Model parameters
+    parser.add_argument('--model', type=str, default='subLSTM',
+        help='RNN model to use. One of subLSTM|fix-subLSTM|LSTM|GRU|subLSTMCuda')
+    parser.add_argument('--nlayers', type=int, default=1,
+        help='number of layers')
+    parser.add_argument('--nhid', type=int, default=50,
+        help='number of hidden units per layer')
+    parser.add_argument('--dropout', type=float, default=0.0,
+        help='drop probability for Bernoulli Dropout')
+    parser.add_argument('--gact', type=str, default='relu',
+        help='gate activation function relu|sig')
+    parser.add_argument('--gbias', type=float, default=0,
+        help='gating bias')
+    parser.add_argument('--script', action='store_true', help='Use TorchScript version')
 
-########################################################################################
-# SET UP OPTIMIZER & OBJECTIVE FUNCTION
-########################################################################################
+    # Data parameters
+    parser.add_argument('--seq-length', type=int, default=50,
+        help='sequence length')
+    parser.add_argument('--num-addends', type=int, default=2,
+        help='the number of addends to be unmasked in each sequence'
+        'must be less than the sequence length')
+    parser.add_argument('--min-arg', type=float, default=0,
+        help='minimum value of the addends')
+    parser.add_argument('--max-arg', type=float, default=1,
+        help='maximum value of the addends')
+    parser.add_argument('--training-size', type=int, default=10000,
+        help='size of the randomly created training set')
+    parser.add_argument('--testing-size', type=int, default=10000,
+        help='size of the randomly created test set')
+    parser.add_argument('--train-val-split', type=float, default=0.2,
+        help='proportion of trainig data used for validation')
+    parser.add_argument('--batch-size', type=int, default=50, metavar='N',
+        help='batch size')
 
-if args.optim == 'adam':
-    optimizer = optim.Adam(model.parameters(),
-        lr=args.lr, eps=1e-9, weight_decay=args.l2_norm, betas=[0.9, 0.98])
-elif args.optim == 'sparseadam':
-    optimizer = optim.SparseAdam(model.parameters(),
-        lr=args.lr, eps=1e-9, weight_decay=args.l2_norm, betas=[0.9, 0.98])
-elif args.optim == 'adamax':
-    optimizer = optim.Adamax(model.parameters(),
-        lr=args.lr, eps=1e-9, weight_decay=args.l2_norm, betas=[0.9, 0.98])
-elif args.optim == 'rmsprop':
-    optimizer = optim.RMSprop(model.parameters(),
-        lr=args.lr, eps=1e-10, weight_decay=args.l2_norm, momentum=0.9)
-elif args.optim == 'sgd':
-    optimizer = optim.SGD(model.parameters(),
-        lr=args.lr, weight_decay=args.l2_norm, momentum=0.9) # 0.01
-elif args.optim == 'adagrad':
-    optimizer = optim.Adagrad(model.parameters(),
-        lr=args.lr, weight_decay=args.l2_norm, lr_decay=0.9)
-elif args.optim == 'adadelta':
-    optimizer = optim.Adadelta(model.parameters(),
-        lr=args.lr, weight_decay=args.l2_norm, rho=0.9)
-else:
-    raise ValueError(r'Optimizer {0} not recognized'.format(args.optim))
+    # Training parameters
+    parser.add_argument('--epochs', type=int, default=40,
+        help='max number of training epochs')
+    parser.add_argument('--optim', type=str, default='rmsprop',
+        help='gradient descent method,'
+        'supports adam|sparseadam|adamax|rmsprop|sgd|adagrad|adadelta')
+    parser.add_argument('--lr', type=float, default=1e-4,
+        help='initial learning rate')
+    parser.add_argument('--l2-norm', type=float, default=0,
+        help='weight of L2 norm')
+    parser.add_argument('--clip', type=float, default=1,
+        help='gradient clipping')
+    parser.add_argument('--track-hidden', action='store_true',
+        help='keep the hidden state values across a whole epoch of training')
+    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+        help='report interval')
 
-criterion = nn.MSELoss()
+    # Replicability and storage
+    parser.add_argument('--save', type=str,  default='results',
+        help='path to save the final model')
+    parser.add_argument('--seed', type=int, default=18092,
+        help='random seed')
 
-########################################################################################
-# TRAIN MODEL
-########################################################################################
+    # CUDA
+    parser.add_argument('--cuda', action='store_true',
+        help='use CUDA')
 
-epochs, log_interval = args.epochs, args.log_interval
-loss_trace, best_loss = [], np.inf
-save_directory_name = '{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
-path_to_this = os.path.abspath(os.path.dirname(__file__))
-save_path = os.path.join(path_to_this, args.save, save_directory_name)
-total_time = 0
+    # Print options
+    parser.add_argument('--verbose', action='store_true',
+        help='print the progress of training to std output.')
+    parser.add_argument('--timing', action='store_true',
+        help='print average training times')
 
+    # Testing
+    parser.add_argument('--test', action='store_true',
+        help='test the loss trace against the relevant cached example')
 
-if args.cuda and not torch.cuda.is_available():
-    print('\n\tWARNING: CUDA requested but not available.\n')
-print("cuda is available: {}".format(torch.cuda.is_available()))
-print("cudnn enabled: {}".format(torch.backends.cudnn.enabled))
+    args = parser.parse_args()
 
-if not os.path.exists(save_path):
-    os.makedirs(save_path)
+    ########################################################################################
+    # SETTING UP THE DEVICE AND SEED
+    ########################################################################################
 
-if args.verbose:
-    print('Training {} model with parameters:'
-            '\n\tnumber of layers: {}'
-            '\n\thidden units: {}'
-            '\n\tmax epochs: {}'
-            '\n\tbatch size: {}'
-            '\n\toptimizer: {}, lr={}, l2={}'.format(
-                args.model, args.nlayers, hidden_size, epochs,
-                batch_size, args.optim, args.lr, args.l2_norm
-            ))
+    torch.cuda.empty_cache()
 
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    # additional parameters that need to be removed if you want non-deterministic behaviour
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     if args.cuda and torch.cuda.is_available():
-        print('\tusing CUDA')
+        torch.cuda.manual_seed(args.seed)
+        device = torch.device('cuda')
     else:
-        print('\tusing CPU')
-        if torch.cuda.is_available():
-            print('\tWARNING: CUDA device available but not being used. \
-                run with --cuda option to enable it.\n\n')
+        device = torch.device('cpu')
 
-try:
-    for e in range(epochs):
-        if args.verbose:
-            print('training epoch {0}'.format(e + 1))
+    ########################################################################################
+    # CREATE THE DATA GENERATOR
+    ########################################################################################
 
-        start_time = time.time()
+    seq_len, num_addends = args.seq_length, args.num_addends
+    min_arg, max_arg = args.min_arg, args.max_arg
+    N, batch_size, test_size = args.training_size, args.batch_size, args.testing_size
 
-        # Train model for 1 epoch over whole dataset
-        epoch_trace = train(
-            model=model, data_loader=training_data,
-            criterion=criterion, optimizer=optimizer, grad_clip=args.clip,
-            log_interval=log_interval,
-            device=device,
-            track_hidden=args.track_hidden,
-            verbose=args.verbose
-        )
+    train_size = int(N * (1 - args.train_val_split))
+    val_size = N - train_size
 
-        loss_trace.extend(epoch_trace)
+    training_data = BatchGenerator(train_size, batch_size, min_arg, max_arg)
+    validation_data = BatchGenerator(val_size, val_size, min_arg, max_arg)
+    test_data = BatchGenerator(test_size, test_size, min_arg, max_arg)
 
-        # Check validation loss
-        val_loss = test(model, validation_data, criterion, device)
+    ########################################################################################
+    # CREATE THE MODEL
+    ########################################################################################
 
-        this_epoch_time = time.time() - start_time
-        total_time += this_epoch_time
+    input_size, hidden_size, responses = 2, args.nhid, 1
 
-        if args.verbose:
-            print('epoch {} finished \
-                \n\ttime for this epoch {} \
-                \n\ttraining_loss = {:5.4f} \
-                \n\tvalidation_loss = {:5.4f}'.format(
-                    e + 1,
-                    this_epoch_time,
-                    np.sum(epoch_trace) / len(epoch_trace),
-                    val_loss))
+    model = init_model(
+        model_type=args.model,
+        n_layers=args.nlayers, hidden_size=args.nhid,
+        input_size=input_size, output_size=responses, class_task=False,
+        device=device,
+        dropout=args.dropout,
+        script=args.script
+    )
+    # model = nn.Sequential(
+    #     SubLSTM(input_size=2, hidden_size=50,num_layers=1, bias=True, batch_first=True),
+    #     nn.Linear(50, 1)
+    # )
 
-        if val_loss < best_loss:
-            #print(val_loss)
-            with open(save_path + '/model.pt', 'wb') as f:
-                torch.save({
-                    'epoch': e + 1,
-                    'model_state': model.state_dict(),
-                    'optimizer_state': optimizer.state_dict(),
-                    'loss': val_loss
-                }, f)
-            best_loss = val_loss
+    ########################################################################################
+    # SET UP OPTIMIZER & OBJECTIVE FUNCTION
+    ########################################################################################
 
-    if args.timing:
-      print('total time to train {}'.format(total_time))
+    if args.optim == 'adam':
+        optimizer = optim.Adam(model.parameters(),
+            lr=args.lr, eps=1e-9, weight_decay=args.l2_norm, betas=[0.9, 0.98])
+    elif args.optim == 'sparseadam':
+        optimizer = optim.SparseAdam(model.parameters(),
+            lr=args.lr, eps=1e-9, weight_decay=args.l2_norm, betas=[0.9, 0.98])
+    elif args.optim == 'adamax':
+        optimizer = optim.Adamax(model.parameters(),
+            lr=args.lr, eps=1e-9, weight_decay=args.l2_norm, betas=[0.9, 0.98])
+    elif args.optim == 'rmsprop':
+        optimizer = optim.RMSprop(model.parameters(),
+            lr=args.lr, eps=1e-10, weight_decay=args.l2_norm, momentum=0.9)
+    elif args.optim == 'sgd':
+        optimizer = optim.SGD(model.parameters(),
+            lr=args.lr, weight_decay=args.l2_norm, momentum=0.9) # 0.01
+    elif args.optim == 'adagrad':
+        optimizer = optim.Adagrad(model.parameters(),
+            lr=args.lr, weight_decay=args.l2_norm, lr_decay=0.9)
+    elif args.optim == 'adadelta':
+        optimizer = optim.Adadelta(model.parameters(),
+            lr=args.lr, weight_decay=args.l2_norm, rho=0.9)
+    else:
+        raise ValueError(r'Optimizer {0} not recognized'.format(args.optim))
 
-except KeyboardInterrupt:
+    criterion = nn.MSELoss()
+
+    ########################################################################################
+    # TRAIN MODEL
+    ########################################################################################
+
+    epochs, log_interval = args.epochs, args.log_interval
+    loss_trace, best_loss = [], np.inf
+    save_directory_name = '{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
+    path_to_this = os.path.abspath(os.path.dirname(__file__))
+    save_path = os.path.join(path_to_this, args.save, save_directory_name)
+    total_time = 0
+
+
+    if args.cuda and not torch.cuda.is_available():
+        print('\n\tWARNING: CUDA requested but not available.\n')
+    print("cuda is available: {}".format(torch.cuda.is_available()))
+    print("cudnn enabled: {}".format(torch.backends.cudnn.enabled))
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
     if args.verbose:
-        print('Keyboard interruption. Terminating training.')
+        print('Training {} model with parameters:'
+                '\n\tnumber of layers: {}'
+                '\n\thidden units: {}'
+                '\n\tmax epochs: {}'
+                '\n\tbatch size: {}'
+                '\n\toptimizer: {}, lr={}, l2={}'.format(
+                    args.model, args.nlayers, hidden_size, epochs,
+                    batch_size, args.optim, args.lr, args.l2_norm
+                ))
 
-# Save the trace of the loss during training
-with open(save_path + '/trace.csv', 'w') as f:
-    wr = csv.writer(f, quoting=csv.QUOTE_ALL)
-    wr.writerow(loss_trace)
+        if args.cuda and torch.cuda.is_available():
+            print('\tusing CUDA')
+        else:
+            print('\tusing CPU')
+            if torch.cuda.is_available():
+                print('\tWARNING: CUDA device available but not being used. \
+                    run with --cuda option to enable it.\n\n')
 
-########################################################################################
-# VALIDATE
-########################################################################################
-
-if args.test:
     try:
-        with open('cached-results/' + save_directory_name + '/trace.csv', 'r') as cached, \
-                open(save_path + '/trace.csv', 'r') as output:
-            cached_trace = cached.readlines()
-            output_trace = output.readlines()
-            if cached_trace != output_trace:
-                print("Trace != cached trace.")
-            else:
-                print("Trace is consistent with cached trace.")
-    except IOError:
-        print('Cached trace.csv not found.', sys.exc_info()[0])
-        raise
+        for e in range(epochs):
+            if args.verbose:
+                print('training epoch {0}'.format(e + 1))
+
+            start_time = time.time()
+
+            # Train model for 1 epoch over whole dataset
+            epoch_trace = train(
+                model=model, data_loader=training_data,
+                criterion=criterion, optimizer=optimizer, grad_clip=args.clip,
+                log_interval=log_interval,
+                device=device,
+                track_hidden=args.track_hidden,
+                verbose=args.verbose
+            )
+
+            loss_trace.extend(epoch_trace)
+
+            # Check validation loss
+            val_loss = test(model, validation_data, criterion, device)
+
+            this_epoch_time = time.time() - start_time
+            total_time += this_epoch_time
+
+            if args.verbose:
+                print('epoch {} finished \
+                    \n\ttime for this epoch {} \
+                    \n\ttraining_loss = {:5.4f} \
+                    \n\tvalidation_loss = {:5.4f}'.format(
+                        e + 1,
+                        this_epoch_time,
+                        np.sum(epoch_trace) / len(epoch_trace),
+                        val_loss))
+
+            if val_loss < best_loss:
+                #print(val_loss)
+                with open(save_path + '/model.pt', 'wb') as f:
+                    torch.save({
+                        'epoch': e + 1,
+                        'model_state': model.state_dict(),
+                        'optimizer_state': optimizer.state_dict(),
+                        'loss': val_loss
+                    }, f)
+                best_loss = val_loss
+
+        if args.timing:
+          print('total time to train {}'.format(total_time))
+
+    except KeyboardInterrupt:
+        if args.verbose:
+            print('Keyboard interruption. Terminating training.')
+
+    # Save the trace of the loss during training
+    with open(save_path + '/trace.csv', 'w') as f:
+        wr = csv.writer(f, quoting=csv.QUOTE_ALL)
+        wr.writerow(loss_trace)
+
+    ########################################################################################
+    # VALIDATE
+    ########################################################################################
+
+    if args.test:
+        try:
+            with open('cached-results/' + save_directory_name + '/trace.csv', 'r') as cached, \
+                    open(save_path + '/trace.csv', 'r') as output:
+                cached_trace = cached.readlines()
+                output_trace = output.readlines()
+                if cached_trace != output_trace:
+                    print("Trace != cached trace.")
+                else:
+                    print("Trace is consistent with cached trace.")
+        except IOError:
+            print('Cached trace.csv not found.', sys.exc_info()[0])
+            raise
 
 
 
-with open(save_path + '/model.pt', 'rb') as f:
-    model.load_state_dict(torch.load(f)['model_state'])
+    with open(save_path + '/model.pt', 'rb') as f:
+        model.load_state_dict(torch.load(f)['model_state'])
 
-test_loss = test(model, test_data, criterion, device)
+    test_loss = test(model, test_data, criterion, device)
 
-if args.verbose:
-    print('Training ended:\n\ttest loss {:5.4f}'.format(
-        test_loss))
+    if args.verbose:
+        print('Training ended:\n\ttest loss {:5.4f}'.format(
+            test_loss))

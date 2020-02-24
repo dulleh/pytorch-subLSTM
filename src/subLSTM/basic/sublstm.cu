@@ -38,11 +38,10 @@ namespace {
 	  // column index
 	  const int c = blockIdx.x * blockDim.x + threadIdx.x;
 	  if (c < gates.size(2)){
-	  //These are ordered in the same way as in functional.py
 		input_gate[n][c] = sigmoid(gates[n][0][c]);
 		output_gate[n][c] = sigmoid(gates[n][1][c]);
-		candidate_cell[n][c] = sigmoid(gates[n][2][c]); // z_t
-		forget_gate[n][c] = sigmoid(gates[n][3][c]); //TODO: swap order of this and candidate cell, with knock-on effects on the backward pass
+		candidate_cell[n][c] = sigmoid(gates[n][2][c]);
+		forget_gate[n][c] = sigmoid(gates[n][3][c]);
 		new_cell[n][c] =
 			(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
 		new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
@@ -81,7 +80,7 @@ std::vector<torch::Tensor> forward_cuda(
     * 4 x 2 = 8 blocks with each 1024 threads.=
     * Source: https://pytorch.org/tutorials/advanced/cpp_extension.html#writing-a-mixed-c-cuda-extension
     **/
-  const int threads = 1024;
+  const int threads = 512;
   const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 
   AT_DISPATCH_FLOATING_TYPES(gates.type(), "forward_cuda", ([&] {
