@@ -23,24 +23,15 @@ def detach_hidden_state(hidden_state):
         return tuple(detach_hidden_state(h) for h in hidden_state)
     return None
 
-def drawbargraph(forwardtimes, forwardseqtimes, model_name):
-    fig, axs = plt.subplots(2, constrained_layout=True)
-    fig.suptitle('Forward Times for {}'.format(model_name))
-
-    axs[0].bar(np.linspace(1, len(forwardtimes)+1, len(forwardtimes)), forwardtimes)
-    axs[0].set(xlabel='forward() call', ylabel='Time (s)')
-
-    axs[1].bar(np.linspace(1, len(forwardseqtimes)+1, len(forwardseqtimes)), forwardseqtimes)
-    axs[1].set(xlabel='input sequence', ylabel='Time (s)')
-
-    plt.show()
-
-def drawepochs(epochs, model_name):
-    fig, axs = plt.subplots(len(epochs), constrained_layout=True)
-    fig.suptitle('Forward Times Across Epochs for {}'.format(model_name))
+def drawepochs(epochs, epochsb, model_name):
+    fig, axs = plt.subplots(len(epochs), 2, constrained_layout=True)
+    fig.suptitle('Times Across Epochs for {}'.format(model_name))
     for i, epochtimes in enumerate(epochs):
-        axs[i].bar(np.linspace(1, len(epochtimes)+1, len(epochtimes)), epochtimes)
-        axs[i].set(xlabel='total forward() time for epoch {} was {}s'.format(i, sum(epochtimes)), ylabel='Time (s)')
+        axs[i][0].bar(np.linspace(1, len(epochtimes)+1, len(epochtimes)), epochtimes)
+        axs[i][0].set(xlabel='total forward() time for epoch {} was {}s'.format(i, sum(epochtimes)), ylabel='Time (s)')
+    for j, epochtimes in enumerate(epochsb):
+        axs[j][1].bar(np.linspace(1, len(epochtimes)+1, len(epochtimes)), epochtimes)
+        axs[j][1].set(xlabel='total backward() time for epoch {} was {}s'.format(i, sum(epochtimes)), ylabel='Time (s)')
     plt.show()
 
 def train(model, data_loader, criterion, optimizer, grad_clip,
@@ -55,10 +46,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
 
-    forwardtimes = []
-    forwardseqtimes = []
     model.rnn.times = []
     model.rnn.seqtimes = []
+    model.rnn.backwardtimes = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
@@ -80,11 +70,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         loss = criterion(outputs, labels)
 
+        backwardstart = time.time()
         loss.backward()
-
-
-        forwardtimes.extend(model.rnn.times)
-        forwardseqtimes.extend(model.rnn.seqtimes)
+        model.rnn.backwardtimes.append(time.time() - backwardstart)
 
         """
         if (i == 2) and verbose:
@@ -128,8 +116,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         break
     """
 
-    print("total forward time: ", sum(forwardtimes))
-    model.rnn.epochtimes.append(forwardtimes)
+    print("total forward time: ", sum(model.rnn.times))
+    print("total backward time: ", sum(model.rnn.backwardtimes))
+    model.rnn.epochtimes.append(model.rnn.times)
+    model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
 
     return loss_trace
 

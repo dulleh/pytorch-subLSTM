@@ -156,8 +156,9 @@ class SubLSTM(nn.Module):
         super().__init__()
 
         self.times = []
-        self.seqtimes = []
         self.epochtimes = []
+        self.backwardtimes = []
+        self.epochbackwardtimes = []
         # Uncomment to get layers of different size. Disable for consistency with LSTM
         # if isinstance(hidden_size, list) and len(hidden_size) != num_layers:
         #     raise ValueError(
@@ -271,8 +272,6 @@ class SubLSTM(nn.Module):
             outputs[time] = out
 
         out = torch.stack(outputs)
-
-        self.seqtimes.append(seqtime)
 
         if self.batch_first:
             out = out.transpose(0, 1)
