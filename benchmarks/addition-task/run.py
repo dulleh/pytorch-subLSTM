@@ -5,6 +5,7 @@ import os
 import argparse
 import time
 import csv
+import math
 
 import numpy as np
 import torch
@@ -16,7 +17,7 @@ sys.path.insert(0, '../../src/')
 sys.path.insert(0, '../')
 
 from wrappers import init_model
-from utils import train, test
+from utils import train, test, drawepochs
 
 class BatchGenerator:
     def __init__(self, training_size, batch_size, min_arg, max_arg, seq_len, num_addends):
@@ -228,6 +229,7 @@ def main(args):
                     }, f)
                 best_loss = val_loss
 
+        drawepochs(model.rnn.epochtimes, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         if args.timing:
           print('total time to train {}'.format(total_time))
 

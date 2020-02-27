@@ -3,7 +3,9 @@ import torch
 import torch.nn as nn
 import time
 
-from subLSTM.basic.nn import SubLSTMCell, SubLSTMCudaCell
+import matplotlib.pyplot as plt
+
+from subLSTM.basic.nn import SubLSTMCell, SubLSTMCudaCell, SubLSTM
 
 def detach_hidden_state(hidden_state):
     """
@@ -21,6 +23,26 @@ def detach_hidden_state(hidden_state):
         return tuple(detach_hidden_state(h) for h in hidden_state)
     return None
 
+def drawbargraph(forwardtimes, forwardseqtimes, model_name):
+    fig, axs = plt.subplots(2, constrained_layout=True)
+    fig.suptitle('Forward Times for {}'.format(model_name))
+
+    axs[0].bar(np.linspace(1, len(forwardtimes)+1, len(forwardtimes)), forwardtimes)
+    axs[0].set(xlabel='forward() call', ylabel='Time (s)')
+
+    axs[1].bar(np.linspace(1, len(forwardseqtimes)+1, len(forwardseqtimes)), forwardseqtimes)
+    axs[1].set(xlabel='input sequence', ylabel='Time (s)')
+
+    plt.show()
+
+def drawepochs(epochs, model_name):
+    fig, axs = plt.subplots(len(epochs), constrained_layout=True)
+    fig.suptitle('Forward Times Across Epochs for {}'.format(model_name))
+    for i, epochtimes in enumerate(epochs):
+        axs[i].bar(np.linspace(1, len(epochtimes)+1, len(epochtimes)), epochtimes)
+        axs[i].set(xlabel='total forward() time for epoch {} was {}s'.format(i, sum(epochtimes)), ylabel='Time (s)')
+    plt.show()
+
 def train(model, data_loader, criterion, optimizer, grad_clip,
         track_hidden, log_interval, device, verbose):
     """
@@ -32,6 +54,11 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
+
+    forwardtimes = []
+    forwardseqtimes = []
+    model.rnn.times = []
+    model.rnn.seqtimes = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
@@ -50,9 +77,14 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         # Forward and backward steps
         outputs, hidden = model(inputs)
+
         loss = criterion(outputs, labels)
 
         loss.backward()
+
+
+        forwardtimes.extend(model.rnn.times)
+        forwardseqtimes.extend(model.rnn.seqtimes)
 
         """
         if (i == 2) and verbose:
@@ -86,6 +118,18 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
             loss_trace.append(running_loss / log_interval)
             running_loss = 0.0
+
+    """
+    for module in model.rnn.children():
+        if isinstance(module, SubLSTMCell):
+            drawbargraph(forwardtimes, forwardseqtimes, 'SubLSTM (python)')
+        else:
+            drawbargraph(forwardtimes, forwardseqtimes, 'SubLSTM (cuda forward, c++ backward)')
+        break
+    """
+
+    print("total forward time: ", sum(forwardtimes))
+    model.rnn.epochtimes.append(forwardtimes)
 
     return loss_trace
 

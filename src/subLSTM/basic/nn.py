@@ -1,6 +1,7 @@
 import os
 import math
 from itertools import product
+from timeit import default_timer as timer
 
 import torch
 import torch.nn as nn
@@ -154,6 +155,9 @@ class SubLSTM(nn.Module):
                     cell_type='vanilla', batch_first=False, dropout=0.0):
         super().__init__()
 
+        self.times = []
+        self.seqtimes = []
+        self.epochtimes = []
         # Uncomment to get layers of different size. Disable for consistency with LSTM
         # if isinstance(hidden_size, list) and len(hidden_size) != num_layers:
         #     raise ValueError(
@@ -247,10 +251,18 @@ class SubLSTM(nn.Module):
         outputs = [input[i] for i in range(timesteps)]
         all_layers = self.all_layers
 
+        seqtime = 0
+
         for time, l in product(range(timesteps), range(self.num_layers)):
             layer = all_layers[l]
 
+            starttime = timer()
+
             out, c = layer(outputs[time], hx[l])
+
+            lapsedtime = timer() - starttime
+            seqtime += lapsedtime
+            self.times.append(lapsedtime)
 
             if self.dropout:
                 out = self.dropout(out)
@@ -259,6 +271,9 @@ class SubLSTM(nn.Module):
             outputs[time] = out
 
         out = torch.stack(outputs)
+
+        self.seqtimes.append(seqtime)
+
         if self.batch_first:
             out = out.transpose(0, 1)
 
