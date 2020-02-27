@@ -56,16 +56,13 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor bias,
     torch::Tensor old_h,
     torch::Tensor old_cell) {
-  //printf("input (%d, %d)\n", input.size(0), input.size(1));
-  //printf("old_h (%d, %d)\n", old_h.size(0), old_h.size(1));
-
   auto X = torch::cat({old_h, input}, /*dim=*/1);
   auto gate_weights = torch::addmm(bias, X, weights.transpose(0, 1));
 
   const auto batch_size = old_cell.size(0);
   const auto state_size = old_cell.size(1);
 
-  auto gates = gate_weights.reshape({batch_size, 4, state_size});
+  auto gates = gate_weights.view({batch_size, 4, state_size});
   auto new_h = torch::zeros_like(old_cell);
   auto new_cell = torch::zeros_like(old_cell);
   auto input_gate = torch::zeros_like(old_cell);
