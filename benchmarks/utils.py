@@ -46,9 +46,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
 
-    model.rnn.times = []
-    model.rnn.seqtimes = []
-    model.rnn.backwardtimes = []
+    #model.rnn.times = []
+    #model.rnn.seqtimes = []
+    #model.rnn.backwardtimes = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
@@ -74,9 +74,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         loss = criterion(outputs, labels)
 
-        backwardstart = time.time()
+        #backwardstart = time.time()
         loss.backward()
-        model.rnn.backwardtimes.append(time.time() - backwardstart)
+        #model.rnn.backwardtimes.append(time.time() - backwardstart)
 
         """
         if (i == 2) and verbose:
@@ -120,10 +120,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         break
     """
 
-    print("total forward time: ", sum(model.rnn.times))
-    print("total backward time: ", sum(model.rnn.backwardtimes))
-    model.rnn.epochtimes.append(model.rnn.times)
-    model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
+    #print("total forward time: ", sum(model.rnn.times))
+    #print("total backward time: ", sum(model.rnn.backwardtimes))
+    #model.rnn.epochtimes.append(model.rnn.times)
+    #model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
 
     return loss_trace
 
