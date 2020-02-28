@@ -1,100 +1,54 @@
-(base) bash-4.2$ python -m cProfile -s tottime run.py --timing --model=subLSTM --cuda --batch-size=8 --seq-length=10 --nhid=500 --epochs=5 --training-size=400 > tempfile && head -n 30 tempfile
-../torch/csrc/utils/python_arg_parser.cpp:698: UserWarning: This overload of addcmul_ is deprecated:
-	addcmul_(Number value, Tensor tensor1, Tensor tensor2)
-Consider using one of the following signatures instead:
-	addcmul_(Tensor tensor1, Tensor tensor2, Number value)
+(base) bash-4.2$ python run.py --timing --model=subLSTM --cuda --batch-size=4 --seq-length=2 --nhid=10 --epochs=1 --training-size=8 --test
 cuda is available: True
 cudnn enabled: True
-total time to train 4.797770023345947
-         500107 function calls (479607 primitive calls) in 6.364 seconds
-
-   Ordered by: internal time
-
-   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-      200    3.055    0.015    3.106    0.016 clip_grad.py:6(clip_grad_norm_)
-       17    0.671    0.039    0.671    0.039 {method 'to' of 'torch._C._TensorBase' objects}
-      200    0.509    0.003    0.509    0.003 {method 'run_backward' of 'torch._C._EngineBase' objects}
-      200    0.470    0.002    0.470    0.002 {method 'item' of 'torch._C._TensorBase' objects}
-        1    0.192    0.192    5.710    5.710 run.py:63(main)
-     2266    0.158    0.000    0.158    0.000 {built-in method addmm}
-      489    0.151    0.000    0.156    0.000 <frozen importlib._bootstrap_external>:914(get_data)
-    44/42    0.146    0.003    0.147    0.004 {built-in method _imp.create_dynamic}
-     2060    0.136    0.000    0.434    0.000 functional.py:4(sublstm)
-     4120    0.050    0.000    0.050    0.000 {built-in method sigmoid}
-      143    0.044    0.000    0.044    0.000 {built-in method posix.listdir}
-      489    0.036    0.000    0.036    0.000 {built-in method marshal.loads}
-     2060    0.032    0.000    0.032    0.000 {method 'matmul' of 'torch._C._TensorBase' objects}
-      206    0.029    0.000    0.085    0.000 run.py:37(next_batch)
-      412    0.025    0.000    0.025    0.000 {built-in method as_tensor}
-       54    0.024    0.000    0.024    0.000 {built-in method io.open}
-     2000    0.024    0.000    0.024    0.000 {method 'add_' of 'torch._C._TensorBase' objects}
-     2090    0.024    0.000    0.024    0.000 {method 'mul_' of 'torch._C._TensorBase' objects}
-      406    0.021    0.000    0.021    0.000 {built-in method stack}
-     4326    0.019    0.000    0.019    0.000 {method 't' of 'torch._C._TensorBase' objects}
- 7004/412    0.019    0.000    0.513    0.001 module.py:540(__call__)
-     1200    0.018    0.000    0.018    0.000 {built-in method norm}
+outputs  tensor([[-0.2813],
+        [-0.3144],
+        [-0.2901],
+        [-0.2733]], device='cuda:0', grad_fn=<AddmmBackward>)
+hidden  [
+(tensor([[-0.0171, -0.0283, -0.1009, -0.1543, -0.0120,  0.2044, -0.1266,  0.1094,
+          0.0264, -0.2956],
+        [-0.0848,  0.0656, -0.1362, -0.1867, -0.0209,  0.1046, -0.1341,  0.0854,
+          0.0800, -0.3518],
+        [-0.0541, -0.0117, -0.1030, -0.1470, -0.0150,  0.1999, -0.1292,  0.1152,
+          0.0281, -0.3098],
+        [-0.0202, -0.0551, -0.0860, -0.1300, -0.0111,  0.2419, -0.1241,  0.1249,
+          0.0037, -0.2823]], device='cuda:0', grad_fn=<SubBackward0>),
+tensor([[-0.3088, -0.3031, -0.2186, -0.5564,  0.0635, -0.0344, -0.0223, -0.3305,
+         -0.3454, -0.2354],
+        [-0.4024, -0.2533, -0.2877, -0.3958,  0.0535, -0.0974, -0.0870, -0.3284,
+         -0.3312, -0.2776],
+        [-0.4219, -0.2789, -0.2617, -0.4792,  0.0585, -0.0476, -0.0718, -0.3214,
+         -0.3669, -0.2597],
+        [-0.3664, -0.3014, -0.2223, -0.5442,  0.0625, -0.0127, -0.0329, -0.3232,
+         -0.3714, -0.2388]], device='cuda:0', grad_fn=<SubBackward0>))]
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- (base) bash-4.2$ python -m cProfile -s tottime run.py --timing --model=subLSTMCuda --cuda --batch-size=8 --seq-length=10 --nhid=500 --epochs=5 --training-size=400 > tempfile && head -n 30 tempfile
-../torch/csrc/utils/python_arg_parser.cpp:698: UserWarning: This overload of addcmul_ is deprecated:
-	addcmul_(Number value, Tensor tensor1, Tensor tensor2)
-Consider using one of the following signatures instead:
-	addcmul_(Tensor tensor1, Tensor tensor2, Number value)
+(base) bash-4.2$ python run.py --timing --model=subLSTMCuda --cuda --batch-size=4 --seq-length=2 --nhid=10 --epochs=1 --training-size=8 --test
 cuda is available: True
 cudnn enabled: True
-total time to train 7.559266567230225
-         866284 function calls (851537 primitive calls) in 9.339 seconds
-
-   Ordered by: internal time
-
-   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-      200    3.218    0.016    3.218    0.016 {method 'run_backward' of 'torch._C._EngineBase' objects}
-     6238    1.626    0.000    1.652    0.000 {built-in method io.open}
-     2060    0.679    0.000    0.679    0.000 {built-in method forward.forward}
-       16    0.667    0.042    0.668    0.042 {method 'to' of 'torch._C._TensorBase' objects}
-      200    0.410    0.002    0.410    0.002 {method 'item' of 'torch._C._TensorBase' objects}
-      200    0.385    0.002    0.465    0.002 clip_grad.py:6(clip_grad_norm_)
-      489    0.252    0.001    0.257    0.001 <frozen importlib._bootstrap_external>:914(get_data)
-    14838    0.216    0.000    0.216    0.000 {built-in method posix.stat}
-2104/2102    0.167    0.000    0.169    0.000 {built-in method _imp.create_dynamic}
-        1    0.138    0.138    8.424    8.424 run.py:63(main)
-     4127    0.055    0.000    0.086    0.000 {method 'read' of '_io.TextIOWrapper' objects}
-    20922    0.050    0.000    0.077    0.000 posixpath.py:75(join)
-     2060    0.047    0.000    1.750    0.001 _cpp_extension_versioner.py:14(hash_source_files)
-     2060    0.045    0.000    3.041    0.001 {built-in method apply}
-      206    0.045    0.000    0.130    0.001 run.py:37(next_batch)
-      143    0.043    0.000    0.043    0.000 {built-in method posix.listdir}
-      489    0.037    0.000    0.037    0.000 {built-in method marshal.loads}
-      412    0.035    0.000    0.035    0.000 {built-in method as_tensor}
-      406    0.033    0.000    0.033    0.000 {built-in method stack}
-     1600    0.032    0.000    0.032    0.000 {method 'add_' of 'torch._C._TensorBase' objects}
-     1672    0.029    0.000    0.029    0.000 {method 'mul_' of 'torch._C._TensorBase' objects}
-     2060    0.028    0.000    0.180    0.000 imp.py:254(find_module)
+outputs  tensor([[-0.3517],
+        [-0.4193],
+        [-0.3608],
+        [-0.3311]], device='cuda:0', grad_fn=<AddmmBackward>)
+hidden  [
+(tensor([[-0.2542, -0.0552,  0.0014, -0.0907,  0.0255,  0.0326, -0.1679,  0.2921,
+          0.0256,  0.0470],
+        [-0.3314, -0.0284, -0.0294, -0.1711, -0.0113, -0.0697, -0.0856,  0.3060,
+          0.0756,  0.0399],
+        [-0.2775, -0.0313,  0.0103, -0.0928,  0.0251,  0.0492, -0.1690,  0.2943,
+          0.0298, -0.0012],
+        [-0.2400, -0.0444,  0.0232, -0.0571,  0.0418,  0.0907, -0.2026,  0.2882,
+          0.0093,  0.0062]], device='cuda:0', grad_fn=<SubLSTMFunctionBackward>),
+tensor([[-0.2719, -0.1850, -0.1092, -0.3804,  0.0284, -0.2542,  0.0498,  0.3514,
+         -0.1479, -0.0667],
+        [-0.3244, -0.0547, -0.0516, -0.4132, -0.0036, -0.2600,  0.1226,  0.3899,
+         -0.2847, -0.2342],
+        [-0.3419, -0.1060, -0.0946, -0.3815,  0.0005, -0.2505,  0.0769,  0.3643,
+         -0.2144, -0.2260],
+        [-0.3160, -0.1670, -0.1197, -0.3668,  0.0195, -0.2455,  0.0431,  0.3470,
+         -0.1361, -0.1372]], device='cuda:0', grad_fn=<SubLSTMFunctionBackward>))]

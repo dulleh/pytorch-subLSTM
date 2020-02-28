@@ -68,6 +68,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         # Forward and backward steps
         outputs, hidden = model(inputs)
 
+        #if i == 0:
+        #    print("outputs ", outputs)
+        #    print("hidden ", hidden)
+
         loss = criterion(outputs, labels)
 
         backwardstart = time.time()
