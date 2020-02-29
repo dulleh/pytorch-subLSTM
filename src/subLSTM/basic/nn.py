@@ -155,12 +155,17 @@ class SubLSTM(nn.Module):
                     cell_type='vanilla', batch_first=False, dropout=0.0):
         super().__init__()
 
-        #self.times = []
-        #self.epochtimes = []
-        #self.backwardtimes = []
-        #self.epochbackwardtimes = []
+        self.times = []
+        self.epochtimes = []
+        self.backwardtimes = []
+        self.epochbackwardtimes = []
 
         self.totalforwardtime = 0
+
+        self.memoryrecords = []
+        self.cachedmemoryrecords = []
+        self.epochmemory = []
+        self.epochcachedmemory = []
 
         # Uncomment to get layers of different size. Disable for consistency with LSTM
         # if isinstance(hidden_size, list) and len(hidden_size) != num_layers:
@@ -255,8 +260,6 @@ class SubLSTM(nn.Module):
         outputs = [input[i] for i in range(timesteps)]
         all_layers = self.all_layers
 
-        #seqtime = 0
-
         for time, l in product(range(timesteps), range(self.num_layers)):
             layer = all_layers[l]
 
@@ -265,9 +268,13 @@ class SubLSTM(nn.Module):
             out, c = layer(outputs[time], hx[l])
 
             lapsedtime = timer() - starttime
-            #seqtime += lapsedtime
-            #self.times.append(lapsedtime)
+            self.times.append(lapsedtime)
+
+
             self.totalforwardtime += lapsedtime
+
+            self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
+            self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)
 
             if self.dropout:
                 out = self.dropout(out)

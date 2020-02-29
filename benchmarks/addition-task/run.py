@@ -17,7 +17,7 @@ sys.path.insert(0, '../../src/')
 sys.path.insert(0, '../')
 
 from wrappers import init_model
-from utils import train, test, drawepochs
+from utils import train, test, drawepochs, drawmemory
 
 class BatchGenerator:
     def __init__(self, training_size, batch_size, min_arg, max_arg, seq_len, num_addends):
@@ -230,6 +230,7 @@ def main(args):
                 best_loss = val_loss
 
         drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         if args.timing:
           print('total time to train {}'.format(total_time))
 

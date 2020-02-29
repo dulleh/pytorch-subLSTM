@@ -34,6 +34,17 @@ def drawepochs(epochs, epochsb, model_name):
         axs[j][1].set(xlabel='total backward() time for epoch {} was {}s'.format(i, sum(epochtimes)), ylabel='Time (s)')
     plt.show()
 
+def drawmemory(epochs, cachedepochs, model_name):
+    fig, axs = plt.subplots(len(epochs), constrained_layout=True)
+    fig.suptitle('Max CUDA Memory Allocation Across Epochs for {}'.format(model_name))
+    for i, memoryrecs in enumerate(epochs):
+        axs[i].plot(memoryrecs, label='allocated memory')
+        axs[i].plot(cachedepochs[i], label='cached memory')
+        handles, labels = axs[i].get_legend_handles_labels()
+        axs[i].legend(handles, labels)
+        axs[i].set(xlabel='forward call index', ylabel='Mem. (MB)')
+    plt.show()
+
 def train(model, data_loader, criterion, optimizer, grad_clip,
         track_hidden, log_interval, device, verbose):
     """
@@ -46,9 +57,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
 
-    #model.rnn.times = []
-    #model.rnn.seqtimes = []
-    #model.rnn.backwardtimes = []
+    model.rnn.times = []
+    model.rnn.backwardtimes = []
+    model.rnn.memoryrecords = []
+    model.rnn.cachedmemoryrecords = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
@@ -74,9 +86,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         loss = criterion(outputs, labels)
 
-        #backwardstart = time.time()
+        backwardstart = time.time()
         loss.backward()
-        #model.rnn.backwardtimes.append(time.time() - backwardstart)
+        model.rnn.backwardtimes.append(time.time() - backwardstart)
 
         """
         if (i == 2) and verbose:
@@ -102,6 +114,7 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         running_loss += loss.item()
 
+        """
         # Print the loss every log-interval mini-batches and save it to the trace
         if i % log_interval == log_interval - 1:
             if verbose:
@@ -110,20 +123,14 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
             loss_trace.append(running_loss / log_interval)
             running_loss = 0.0
-
-    """
-    for module in model.rnn.children():
-        if isinstance(module, SubLSTMCell):
-            drawbargraph(forwardtimes, forwardseqtimes, 'SubLSTM (python)')
-        else:
-            drawbargraph(forwardtimes, forwardseqtimes, 'SubLSTM (cuda forward, c++ backward)')
-        break
-    """
+        """
 
     #print("total forward time: ", sum(model.rnn.times))
     #print("total backward time: ", sum(model.rnn.backwardtimes))
-    #model.rnn.epochtimes.append(model.rnn.times)
-    #model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
+    model.rnn.epochtimes.append(model.rnn.times)
+    model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
+    model.rnn.epochmemory.append(model.rnn.memoryrecords)
+    model.rnn.epochcachedmemory.append(model.rnn.cachedmemoryrecords)
 
     return loss_trace
 

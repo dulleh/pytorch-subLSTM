@@ -79,6 +79,7 @@ def main(args):
 
     pythonforwardtimes = []
     cudaforwardtimes = []
+
     for thismodel in ['subLSTM', 'subLSTMCuda']:
         # will be
         # [total time across epochs>=1 for hid=1, total time hid=2, total time hid=3, ..., total time hid=nhid]
