@@ -90,6 +90,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         loss.backward()
         model.rnn.backwardtimes.append(time.time() - backwardstart)
 
+        del outputs
+        del hidden
+
         """
         if (i == 2) and verbose:
             for module in model.rnn.children():

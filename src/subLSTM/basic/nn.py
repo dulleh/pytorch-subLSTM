@@ -42,6 +42,7 @@ class SubLSTMFunction(Function):
         grad_h = grad_h.contiguous()
 
         outputs = backward_cpp.backward(grad_h, grad_cell, *ctx.varies)
+        del ctx.varies
 
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
@@ -72,8 +73,10 @@ class SubLSTMCudaCell(nn.Module):
         self.bias = nn.Parameter(input_bias) if bias else None
 
         self.reset_parameters()
-        #self.flatten_parameters()
+        self.flattenParameters()
 
+    def flattenParameters(self):
+        pass
 
     def reset_parameters(self):
         for module in self.children():
@@ -108,6 +111,9 @@ class SubLSTMCell(nn.Module):
                 module.reset_parameters()
             except AttributeError:
                 pass
+
+    def flattenParameters(self):
+        pass
 
     def forward(self, input: torch.Tensor, hx):
         return sublstm(
@@ -229,7 +235,8 @@ class SubLSTM(nn.Module):
                 pass
 
     def flatten_parameters(self):
-        pass
+        for module in self.children():
+            module.flattenParameters()
 
     #@staticmethod
     def forward(self, input, hx=None):
@@ -262,6 +269,9 @@ class SubLSTM(nn.Module):
 
         for time, l in product(range(timesteps), range(self.num_layers)):
             layer = all_layers[l]
+
+
+            self.flatten_parameters()
 
             starttime = timer()
 
