@@ -42,6 +42,7 @@ class SubLSTMFunction(Function):
         grad_h = grad_h.contiguous()
 
         outputs = backward_cpp.backward(grad_h, grad_cell, *ctx.varies)
+        # Fix memory leak.
         del ctx.varies
 
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
