@@ -22,9 +22,18 @@ from utils import train, test, drawepochs
 import matplotlib.pyplot as plt
 
 def drawtimevshidden(pythontimes, cudatimes, numepochs, batchsize, seqlen, trainingsize):
+    path_to_this = os.path.abspath(os.path.dirname(__file__))
+    cuda_file_name = 'CUDA_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    python_file_name = 'python_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    cuda_save_path = os.path.join(path_to_this, cuda_file_name)
+    python_save_path = os.path.join(path_to_this, python_file_name)
+    np.savetxt(cuda_save_path, cudatimes, delimiter=',')
+    np.savetxt(python_save_path, pythontimes, delimiter=',')
+
     plt.suptitle('Avg. Forward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
     plt.plot(np.arange(1, len(pythontimes)+1, 1), pythontimes, label='Python')
     plt.plot(np.arange(1, len(pythontimes)+1, 1), cudatimes, label='CUDA forward, C++ backward')
+    plt.legend()
     plt.xlabel('Hidden units')
     plt.ylabel('Average Time (s)')
     plt.show()

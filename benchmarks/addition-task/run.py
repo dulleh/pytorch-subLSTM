@@ -218,6 +218,7 @@ def main(args):
                         np.sum(epoch_trace) / len(epoch_trace),
                         val_loss))
 
+            """
             if val_loss < best_loss:
                 #print(val_loss)
                 with open(save_path + '/model.pt', 'wb') as f:
@@ -228,9 +229,9 @@ def main(args):
                         'loss': val_loss
                     }, f)
                 best_loss = val_loss
-
-        drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
-        drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+            """
+        #drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        #drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         if args.timing:
           print('total time to train {}'.format(total_time))
 
