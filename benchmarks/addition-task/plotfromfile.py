@@ -25,7 +25,7 @@ if __name__ == '__main__':
     batchsize, seqlen, trainingsize, numepochs = 4, 4, 80, 4
     parser = argparse.ArgumentParser(description='Addition task')
     path_to_this = os.path.abspath(os.path.dirname(__file__))
-    cuda_file_name = 'CUDA_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    cuda_file_name = 'CUDA_fused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
     python_file_name = 'python_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
     cuda_save_path = os.path.join(path_to_this, cuda_file_name)
     python_save_path = os.path.join(path_to_this, python_file_name)
