@@ -22,7 +22,7 @@ from utils import train, test, drawepochs
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    batchsize, seqlen, trainingsize, numepochs = 4, 4, 80, 4
+    batchsize, seqlen, trainingsize, numepochs = 16, 4, 80, 9
     parser = argparse.ArgumentParser(description='Addition task')
     path_to_this = os.path.abspath(os.path.dirname(__file__))
     cuda_v1_file_name = 'CUDA_v1_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
