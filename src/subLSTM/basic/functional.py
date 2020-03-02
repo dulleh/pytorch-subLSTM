@@ -20,6 +20,20 @@ def sublstm(input, hidden, input_layer, recurrent_layer):
     #print("cell c_t", c_t)
     return h_t, c_t
 
+def unfusedlstm(input, hidden, input_layer, recurrent_layer):
+    h_tm1, c_tm1 = hidden
+    pre_in_gate, pre_out_gate, pre_z_t, pre_f_gate = (input_layer(input) + recurrent_layer(h_tm1)).chunk(4,1)
+
+    in_gate = torch.sigmoid(pre_in_gate)
+    out_gate = torch.sigmoid(pre_out_gate)
+    z_t = torch.tanh(pre_z_t)
+    f_gate = torch.sigmoid(pre_f_gate)
+
+    c_t = c_tm1 * f_gate + in_gate * z_t
+    h_t = torch.tanh(c_t) * out_gate
+
+    return h_t, c_t
+
 def fsublstm(input, hidden, input_layer, recurrent_layer, f_gate):
     h_tm1, c_tm1 = hidden
     proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))

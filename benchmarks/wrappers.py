@@ -59,7 +59,7 @@ def init_model(model_type, hidden_size, input_size, n_layers,
                                              batch_first=True,
                                              dropout=dropout))
 
-        else: 
+        else:
             rnn = VanillaSubLSTM(input_size=input_size,
                                  hidden_size=hidden_size,
                                  num_layers=n_layers,
@@ -110,6 +110,14 @@ def init_model(model_type, hidden_size, input_size, n_layers,
             batch_first=True,
             dropout=dropout
         )
+
+    elif model_type == 'unfusedLSTM':
+        rnn = VanillaSubLSTM(input_size=input_size,
+                             hidden_size=hidden_size,
+                             num_layers=n_layers,
+                             cell_type='unfusedLSTM',
+                             batch_first=True,
+                             dropout=dropout)
 
     elif model_type == 'GRU':
         rnn = nn.GRU(

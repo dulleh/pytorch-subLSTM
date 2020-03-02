@@ -17,22 +17,22 @@ sys.path.insert(0, '../../src/')
 sys.path.insert(0, '../')
 
 from wrappers import init_model
-from utils import train, test, drawepochs
+from utils import train, test, drawepochs, Timings
 
 import matplotlib.pyplot as plt
 
-def drawtimevshidden(pythontimes, cudatimes, numepochs, batchsize, seqlen, trainingsize):
+def drawtimevshidden(fusedtimes, unfusedtimes, numepochs, batchsize, seqlen, trainingsize):
     path_to_this = os.path.abspath(os.path.dirname(__file__))
-    cuda_file_name = 'CUDA_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
-    python_file_name = 'python_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
-    cuda_save_path = os.path.join(path_to_this, cuda_file_name)
-    python_save_path = os.path.join(path_to_this, python_file_name)
-    np.savetxt(cuda_save_path, cudatimes, delimiter=',')
-    np.savetxt(python_save_path, pythontimes, delimiter=',')
+    fused_file_name = 'LSTM_fused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    unfused_file_name = 'LSTM_unfused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    fused_save_path = os.path.join(path_to_this, fused_file_name)
+    unfused_save_path = os.path.join(path_to_this, unfused_file_name)
+    np.savetxt(fused_save_path, fusedtimes, delimiter=',')
+    np.savetxt(unfused_save_path, unfusedtimes, delimiter=',')
 
     plt.suptitle('Avg. Forward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
-    plt.plot(np.arange(1, len(pythontimes)+1, 1), pythontimes, label='Python')
-    plt.plot(np.arange(1, len(pythontimes)+1, 1), cudatimes, label='CUDA forward, C++ backward')
+    plt.plot(np.arange(1, len(fusedtimes)+1, 1), fusedtimes, label='LSTM fused')
+    plt.plot(np.arange(1, len(unfusedtimes)+1, 1), unfusedtimes, label='LSTM unfused')
     plt.legend()
     plt.xlabel('Hidden units')
     plt.ylabel('Average Time (s)')
@@ -86,10 +86,10 @@ def main(args):
     ########################################################################################
     input_size, hidden_size, responses = 2, args.nhid, 1
 
-    pythonforwardtimes = []
-    cudaforwardtimes = []
+    fusedforwardtimes = []
+    unfusedforwardtimes = []
 
-    for thismodel in ['subLSTM', 'subLSTMCuda']:
+    for thismodel in ['LSTM', 'unfusedLSTM']:
         # will be
         # [total time across epochs>=1 for hid=1, total time hid=2, total time hid=3, ..., total time hid=nhid]
         forwardtimes = []
@@ -137,6 +137,7 @@ def main(args):
                 dropout=args.dropout,
                 script=args.script
             )
+            timings = Timings()
 
             ########################################################################################
             # SET UP OPTIMIZER & OBJECTIVE FUNCTION
@@ -179,13 +180,18 @@ def main(args):
                         log_interval=log_interval,
                         device=device,
                         track_hidden=args.track_hidden,
-                        verbose=args.verbose
+                        verbose=args.verbose,
+                        timings=timings
                     )
 
                     # skip the first epoch as that is a special case
                     if e > 0:
-                        forwardtimesum.append(model.rnn.totalforwardtime)
-                    model.rnn.totalforwardtime = 0
+                        if (isinstance(model.rnn, nn.LSTM)):
+                            forwardtimesum.append(timings.totalforwardtime)
+                            timings.totalforwardtime = 0
+                        else:
+                            forwardtimesum.append(model.rnn.totalforwardtime)
+                            model.rnn.totalforwardtime = 0
 
             except KeyboardInterrupt:
                 if args.verbose:
@@ -194,12 +200,12 @@ def main(args):
             # average the times over epochs (skipping the first)
             forwardtimes.append(np.mean(forwardtimesum))
 
-        if thismodel == 'subLSTM':
-            pythonforwardtimes.extend(forwardtimes)
-        elif thismodel == 'subLSTMCuda':
-            cudaforwardtimes.extend(forwardtimes)
+        if thismodel == 'LSTM':
+            fusedforwardtimes.extend(forwardtimes)
+        elif thismodel == 'unfusedLSTM':
+            unfusedforwardtimes.extend(forwardtimes)
 
-    drawtimevshidden(pythonforwardtimes, cudaforwardtimes, args.epochs - 1, args.batch_size, args.seq_length, args.training_size)
+    drawtimevshidden(fusedforwardtimes, unfusedforwardtimes, args.epochs - 1, args.batch_size, args.seq_length, args.training_size)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Addition task')

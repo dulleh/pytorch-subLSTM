@@ -17,7 +17,7 @@ sys.path.insert(0, '../../src/')
 sys.path.insert(0, '../')
 
 from wrappers import init_model
-from utils import train, test, drawepochs, drawmemory
+from utils import train, test, drawepochs, drawmemory, Timings
 
 class BatchGenerator:
     def __init__(self, training_size, batch_size, min_arg, max_arg, seq_len, num_addends):
@@ -109,6 +109,7 @@ def main(args):
         dropout=args.dropout,
         script=args.script
     )
+    timings = Timings()
     # model = nn.Sequential(
     #     SubLSTM(input_size=2, hidden_size=50,num_layers=1, bias=True, batch_first=True),
     #     nn.Linear(50, 1)
@@ -155,7 +156,7 @@ def main(args):
     save_path = os.path.join(path_to_this, args.save, save_directory_name)
     total_time = 0
 
-
+    print("CUDNN version: ", torch.backends.cudnn.version())
     if args.cuda and not torch.cuda.is_available():
         print('\n\tWARNING: CUDA requested but not available.\n')
     print("cuda is available: {}".format(torch.cuda.is_available()))
@@ -197,7 +198,8 @@ def main(args):
                 log_interval=log_interval,
                 device=device,
                 track_hidden=args.track_hidden,
-                verbose=args.verbose
+                verbose=args.verbose,
+                timings=timings
             )
 
             loss_trace.extend(epoch_trace)
@@ -218,7 +220,7 @@ def main(args):
                         np.sum(epoch_trace) / len(epoch_trace),
                         val_loss))
 
-            """
+
             if val_loss < best_loss:
                 #print(val_loss)
                 with open(save_path + '/model.pt', 'wb') as f:
@@ -229,7 +231,7 @@ def main(args):
                         'loss': val_loss
                     }, f)
                 best_loss = val_loss
-            """
+
         #drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         #drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         if args.timing:
@@ -278,7 +280,7 @@ if __name__ == '__main__':
 
     # Model parameters
     parser.add_argument('--model', type=str, default='subLSTM',
-        help='RNN model to use. One of subLSTM|fix-subLSTM|LSTM|GRU|subLSTMCuda')
+        help='RNN model to use. One of subLSTM|fix-subLSTM|LSTM|GRU|subLSTMCuda|unfusedLSTM')
     parser.add_argument('--nlayers', type=int, default=1,
         help='number of layers')
     parser.add_argument('--nhid', type=int, default=50,

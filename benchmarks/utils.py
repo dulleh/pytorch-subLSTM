@@ -7,6 +7,19 @@ import matplotlib.pyplot as plt
 
 from subLSTM.basic.nn import SubLSTMCell, SubLSTMCudaCell, SubLSTM
 
+class Timings:
+
+    times = []
+    backwardtimes = []
+    memoryrecords = []
+    cachedmemoryrecords = []
+    epochtimes = []
+    epochbackwardtimes = []
+    epochmemoryrecords = []
+    epochcachedmemoryrecords = []
+    totalforwardtime = 0
+
+
 def detach_hidden_state(hidden_state):
     """
     Use this method to detach the hidden state from the previous batch's history.
@@ -46,7 +59,7 @@ def drawmemory(epochs, cachedepochs, model_name):
     plt.show()
 
 def train(model, data_loader, criterion, optimizer, grad_clip,
-        track_hidden, log_interval, device, verbose):
+        track_hidden, log_interval, device, verbose, timings):
     """
     Train the model for one epoch over the whole dataset.
     """
@@ -57,10 +70,16 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
 
-    model.rnn.times = []
-    model.rnn.backwardtimes = []
-    model.rnn.memoryrecords = []
-    model.rnn.cachedmemoryrecords = []
+    if (isinstance(model.rnn, nn.LSTM)):
+        timings.times = []
+        timings.backwardtimes = []
+        timings.memoryrecords = []
+        timings.cachedmemoryrecords = []
+    else:
+        model.rnn.times = []
+        model.rnn.backwardtimes = []
+        model.rnn.memoryrecords = []
+        model.rnn.cachedmemoryrecords = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
@@ -88,7 +107,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         backwardstart = time.time()
         loss.backward()
-        model.rnn.backwardtimes.append(time.time() - backwardstart)
+        if (isinstance(model.rnn, nn.LSTM)):
+            timings.backwardtimes.append(time.time() - backwardstart)
+        else:
+            model.rnn.backwardtimes.append(time.time() - backwardstart)
 
         del outputs
         del hidden
@@ -117,7 +139,7 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         running_loss += loss.item()
 
-        """
+
         # Print the loss every log-interval mini-batches and save it to the trace
         if i % log_interval == log_interval - 1:
             if verbose:
@@ -126,15 +148,21 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
             loss_trace.append(running_loss / log_interval)
             running_loss = 0.0
-        """
+
 
 
     #print("total forward time: ", sum(model.rnn.times))
     #print("total backward time: ", sum(model.rnn.backwardtimes))
-    model.rnn.epochtimes.append(model.rnn.times)
-    model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
-    model.rnn.epochmemory.append(model.rnn.memoryrecords)
-    model.rnn.epochcachedmemory.append(model.rnn.cachedmemoryrecords)
+    if (isinstance(model.rnn, nn.LSTM)):
+        timings.epochtimes.append(timings.times)
+        timings.epochbackwardtimes.append(timings.backwardtimes)
+        timings.epochmemoryrecords.append(timings.memoryrecords)
+        timings.epochcachedmemoryrecords.append(timings.cachedmemoryrecords)
+    else:
+        model.rnn.epochtimes.append(model.rnn.times)
+        model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
+        model.rnn.epochmemory.append(model.rnn.memoryrecords)
+        model.rnn.epochcachedmemory.append(model.rnn.cachedmemoryrecords)
 
     return loss_trace
 

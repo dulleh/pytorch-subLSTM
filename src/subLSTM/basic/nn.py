@@ -10,7 +10,7 @@ from torch.nn.modules.rnn import RNNCellBase
 # from torch.nn.modules.rnn import PackedSequence
 # from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as pad
 from torch.autograd import Function
-from .functional import sublstm, fsublstm
+from .functional import sublstm, fsublstm, unfusedlstm
 from torch.utils.cpp_extension import load
 
 ### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
@@ -123,6 +123,39 @@ class SubLSTMCell(nn.Module):
             self.recurrent_layer,
         )
 
+class UnfusedLSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(UnfusedLSTMCell, self).__init__()
+
+        # Set the parameters
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+
+        gate_size = 4 * hidden_size
+
+        self.input_layer = nn.Linear(input_size, gate_size, bias=bias)
+        self.recurrent_layer = nn.Linear(hidden_size, gate_size, bias=False)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for module in self.children():
+            try:
+                module.reset_parameters()
+            except AttributeError:
+                pass
+
+    def flattenParameters(self):
+        pass
+
+    def forward(self, input: torch.Tensor, hx):
+        return unfusedlstm(
+            input, hx,
+            self.input_layer,
+            self.recurrent_layer,
+        )
+
 
 class fixSubLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True):
@@ -198,8 +231,10 @@ class SubLSTM(nn.Module):
             layer_type = SubLSTMCudaCell
         elif cell_type == 'vanilla':
             layer_type = SubLSTMCell
+        elif cell_type == 'unfusedLSTM':
+            layer_type = UnfusedLSTMCell
         else:
-            raise Exception('cell_type must one of \'vanilla\', \'fixed_forget\', or \'cuda\'. Recieved: {}'.format(cell_type))
+            raise Exception('cell_type must one of \'vanilla\', \'fixed_forget\', or \'cuda\' or \'unfusedLSTM\'. Recieved: {}'.format(cell_type))
 
         for layer_num in range(num_layers):
 
