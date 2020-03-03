@@ -22,7 +22,7 @@ from utils import train, test, drawepochs
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    batchsize, seqlen, trainingsize, numepochs = 16, 4, 80, 9
+    batchsize, seqlen, trainingsize, numepochs = 4, 4, 80, 4
     parser = argparse.ArgumentParser(description='Addition task')
     path_to_this = os.path.abspath(os.path.dirname(__file__))
     cuda_v1_file_name = 'CUDA_v1_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
@@ -45,12 +45,12 @@ if __name__ == '__main__':
     lstmunfusedtimes = np.loadtxt(lstm_unfused_save_path, delimiter=',')
     lstmfusedtimes = np.loadtxt(lstm_fused_save_path, delimiter=',')
     plt.suptitle('Avg. Forward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
-    plt.plot(np.arange(1, len(pythonv1times)+1, 1), pythonv1times, label='Python (run alongside unfused)')
-    plt.plot(np.arange(1, len(pythonfusedtimes)+1, 1), pythonfusedtimes, label='Python (run alongside fused)')
-    plt.plot(np.arange(1, len(cudav1times)+1, 1), cudav1times, label='CUDA forward (unfused, FML)')
-    plt.plot(np.arange(1, len(cudafusedtimes)+1, 1), cudafusedtimes, label='CUDA forward (fused, FML)')
+    plt.plot(np.arange(1, len(pythonv1times)+1, 1), pythonv1times, label='subLSTM Py (run alongside unfused)')
+    plt.plot(np.arange(1, len(pythonfusedtimes)+1, 1), pythonfusedtimes, label='subLSTM Py (run alongside fused)')
+    plt.plot(np.arange(1, len(cudav1times)+1, 1), cudav1times, label='subLSTM CUDA (unfused, FML)')
+    plt.plot(np.arange(1, len(cudafusedtimes)+1, 1), cudafusedtimes, label='subLSTM CUDA (fused, FML)')
     plt.plot(np.arange(1, len(lstmunfusedtimes)+1, 1), lstmunfusedtimes, label='LSTM unfused')
-    plt.plot(np.arange(1, len(lstmfusedtimes)+1, 1), lstmfusedtimes, label='LSTM (pytorch standard)')
+    plt.plot(np.arange(1, len(lstmfusedtimes)+1, 1), lstmfusedtimes, label='LSTM (Pytorch std.)')
     plt.legend()
     plt.xlabel('Hidden units')
     plt.ylabel('Average Time (s)')
