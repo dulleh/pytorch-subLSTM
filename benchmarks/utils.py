@@ -106,7 +106,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         forwardstart = time.time()
         outputs, hidden = model(inputs)
         timings.totalforwardtime += time.time() - forwardstart
-        
+
+        loss = criterion(outputs, labels)
+
         backwardstart = time.time()
         loss.backward()
         if (isinstance(model.rnn, nn.LSTM)):
