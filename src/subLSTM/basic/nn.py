@@ -64,9 +64,9 @@ class SubLSTMCudaCell(nn.Module):
         input_layer.reset_parameters()
         recurrent_layer.reset_parameters()
 
-        input_weights = input_layer.weight.data
-        input_bias = input_layer.bias.data
-        recurrent_weights = recurrent_layer.weight.data
+        input_weights = input_layer.weight.data.cuda()
+        input_bias = input_layer.bias.data.cuda()
+        recurrent_weights = recurrent_layer.weight.data.cuda()
         weightz = torch.cat((recurrent_weights, input_weights), 1)
 
         self.state_size = state_size
