@@ -22,7 +22,14 @@ class SubLSTMFunction(Function):
 
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
+
+        fninja=open("ninjatime.csv", "a+")
+        f=open("functionforwardtime.csv", "a+")
+
+        starttime = timer()
         forward_cpp = load(name="forward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
+
+        ninjatime = timer() - starttime
 
         outputs = forward_cpp.forward(input,
                                       weights,
@@ -32,6 +39,12 @@ class SubLSTMFunction(Function):
         new_h, new_cell = outputs[:2]
 
         ctx.varies = outputs[1:] + [weights] + [old_cell]
+        lapsedtime = timer() - starttime
+
+        fninja.write("{},".format(ninjatime))
+        fninja.close()
+        f.write("{},".format(lapsedtime))
+        f.close()
 
         return new_h, new_cell
 
