@@ -230,7 +230,7 @@ def main(args):
                     }, f)
                 best_loss = val_loss
             """
-        drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "AoT-compiled {} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         #drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         if args.timing:
           print('total time to train {}'.format(total_time))

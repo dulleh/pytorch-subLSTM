@@ -11,27 +11,18 @@ from torch.nn.modules.rnn import RNNCellBase
 # from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as pad
 from torch.autograd import Function
 from .functional import sublstm, fsublstm
-from torch.utils.cpp_extension import load
+
+import sublstm_cuda
 
 ### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
-    path_to_this = os.path.abspath(os.path.dirname(__file__))
-    cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-    cu_path = os.path.join(path_to_this, "sublstm.cu")
-
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
+        #f=open("functionforwardtime.csv", "a+")
+        #starttime = timer()
 
-        fninja=open("ninjatime.csv", "a+")
-        f=open("functionforwardtime.csv", "a+")
-
-        starttime = timer()
-        forward_cpp = load(name="forward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-
-        ninjatime = timer() - starttime
-
-        outputs = forward_cpp.forward(input,
+        outputs = sublstm_cuda.forward(input,
                                       weights,
                                       bias,
                                       old_h,
@@ -39,22 +30,18 @@ class SubLSTMFunction(Function):
         new_h, new_cell = outputs[:2]
 
         ctx.varies = outputs[1:] + [weights] + [old_cell]
-        lapsedtime = timer() - starttime
 
-        fninja.write("{},".format(ninjatime))
-        fninja.close()
-        f.write("{},".format(lapsedtime))
-        f.close()
+        #lapsedtime = timer() - starttime
+        #f.write("{},".format(lapsedtime))
+        #f.close()
 
         return new_h, new_cell
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
-        backward_cpp = load(name="backward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-
         grad_h = grad_h.contiguous()
 
-        outputs = backward_cpp.backward(grad_h, grad_cell, *ctx.varies)
+        outputs = sublstm_cuda.backward(grad_h, grad_cell, *ctx.varies)
         # Fix memory leak.
         del ctx.varies
 
