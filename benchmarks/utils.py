@@ -88,7 +88,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         backwardstart = time.time()
         loss.backward()
-        model.rnn.backwardtimes.append(time.time() - backwardstart)
+        btime = time.time() - backwardstart
+        model.rnn.backwardtimes.append(btime)
+        model.rnn.totalbackwardtime += btime
 
         del outputs
         del hidden
