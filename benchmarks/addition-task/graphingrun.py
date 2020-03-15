@@ -40,8 +40,8 @@ def drawtimevshidden(pythontimes, cudatimes, numepochs, batchsize, seqlen, train
 
 def drawtimevshiddenbackward(pythontimes, cudatimes, numepochs, batchsize, seqlen, trainingsize):
     path_to_this = os.path.abspath(os.path.dirname(__file__))
-    cuda_file_name = 'CUDA_backwardfused_AOT_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
-    python_file_name = 'python_backwardfused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    cuda_file_name = 'backward_CUDA_fused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    python_file_name = 'backward_python_fused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
     cuda_save_path = os.path.join(path_to_this, cuda_file_name)
     python_save_path = os.path.join(path_to_this, python_file_name)
     np.savetxt(cuda_save_path, cudatimes, delimiter=',')
