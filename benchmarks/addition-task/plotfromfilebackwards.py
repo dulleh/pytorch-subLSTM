@@ -44,7 +44,7 @@ if __name__ == '__main__':
     lstmunfusedtimes = np.loadtxt(lstm_unfused_save_path, delimiter=',')
     lstmfusedtimes = np.loadtxt(lstm_fused_save_path, delimiter=',')
 
-    plt.suptitle('Avg. Forward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
+    plt.suptitle('Avg. Backward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
     plt.plot(np.arange(1, len(pythonv1times)+1, 1), pythonv1times, label='subLSTM Py (unfused)', color='tab:blue')
     plt.plot(np.arange(1, len(cudav1times)+1, 1), cudav1times, label='subLSTM CUDA (unfused, FML, AOT)', color='tab:green')
     plt.plot(np.arange(1, len(cudafusedtimes)+1, 1), cudafusedtimes, label='subLSTM CUDA (fused, FML, AOT)', color='tab:red')
