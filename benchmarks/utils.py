@@ -18,6 +18,7 @@ class Timings:
     epochmemoryrecords = []
     epochcachedmemoryrecords = []
     totalforwardtime = 0
+    totalbackwardtime = 0
 
 
 def detach_hidden_state(hidden_state):
@@ -111,10 +112,13 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         backwardstart = time.time()
         loss.backward()
+        btime = time.time() - backwardstart
         if (isinstance(model.rnn, nn.LSTM)):
-            timings.backwardtimes.append(time.time() - backwardstart)
+            timings.totalbackwardtime += btime
+            timings.backwardtimes.append(btime)
         else:
-            model.rnn.backwardtimes.append(time.time() - backwardstart)
+            model.rnn.totalbackwardtime += btime
+            model.rnn.backwardtimes.append(btime)
 
         del outputs
         del hidden

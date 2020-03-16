@@ -201,6 +201,7 @@ class SubLSTM(nn.Module):
         self.epochbackwardtimes = []
 
         self.totalforwardtime = 0
+        self.totalbackwardtime = 0
 
         self.memoryrecords = []
         self.cachedmemoryrecords = []

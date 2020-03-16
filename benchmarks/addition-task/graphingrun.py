@@ -38,6 +38,23 @@ def drawtimevshidden(fusedtimes, unfusedtimes, numepochs, batchsize, seqlen, tra
     plt.ylabel('Average Time (s)')
     plt.show()
 
+def drawtimevshiddenbackward(cudatimes, pythontimes, numepochs, batchsize, seqlen, trainingsize):
+    path_to_this = os.path.abspath(os.path.dirname(__file__))
+    cuda_file_name = 'backward_LSTM_fused_v1_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    python_file_name = 'backward_LSTM_unfused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    cuda_save_path = os.path.join(path_to_this, cuda_file_name)
+    python_save_path = os.path.join(path_to_this, python_file_name)
+    np.savetxt(cuda_save_path, cudatimes, delimiter=',')
+    np.savetxt(python_save_path, pythontimes, delimiter=',')
+
+    plt.suptitle('Avg. Backward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
+    plt.plot(np.arange(1, len(pythontimes)+1, 1), pythontimes, label='LSTM backward unfused')
+    plt.plot(np.arange(1, len(pythontimes)+1, 1), cudatimes, label='LSTM backward fused')
+    plt.legend()
+    plt.xlabel('Hidden units')
+    plt.ylabel('Average Time (s)')
+    plt.show()
+
 class BatchGenerator:
     def __init__(self, training_size, batch_size, min_arg, max_arg, seq_len, num_addends):
         self.min_arg = min_arg
@@ -88,11 +105,14 @@ def main(args):
 
     fusedforwardtimes = []
     unfusedforwardtimes = []
+    fusedbackwardtimes = []
+    unfusedbackwardtimes = []
 
     for thismodel in ['LSTM', 'unfusedLSTM']:
         # will be
         # [total time across epochs>=1 for hid=1, total time hid=2, total time hid=3, ..., total time hid=nhid]
         forwardtimes = []
+        backwardtimes = []
 
         # We reinterpret 'nhid' parameter to be the maximum nhid to loop up to
         for current_hidden_size in range(1,hidden_size):
@@ -156,8 +176,7 @@ def main(args):
             loss_trace, best_loss = [], np.inf
 
             forwardtimesum = []
-
-
+            backwardtimesum = []
 
             if args.verbose:
                 print('Training {} model with parameters:'
@@ -189,9 +208,13 @@ def main(args):
                         if (isinstance(model.rnn, nn.LSTM)):
                             forwardtimesum.append(timings.totalforwardtime)
                             timings.totalforwardtime = 0
+                            backwardtimesum.append(timings.totalbackwardtime)
+                            timings.totalbackwardtime = 0
                         else:
                             forwardtimesum.append(model.rnn.totalforwardtime)
                             model.rnn.totalforwardtime = 0
+                            backwardtimesum.append(model.rnn.totalbackwardtime)
+                            model.rnn.totalbackwardtime = 0
 
             except KeyboardInterrupt:
                 if args.verbose:
@@ -199,13 +222,17 @@ def main(args):
 
             # average the times over epochs (skipping the first)
             forwardtimes.append(np.mean(forwardtimesum))
+            backwardtimes.append(np.mean(backwardtimesum))
 
         if thismodel == 'LSTM':
             fusedforwardtimes.extend(forwardtimes)
+            fusedbackwardtimes.extend(backwardtimes)
         elif thismodel == 'unfusedLSTM':
             unfusedforwardtimes.extend(forwardtimes)
+            unfusedbackwardtimes.extend(backwardtimes)
 
     drawtimevshidden(fusedforwardtimes, unfusedforwardtimes, args.epochs - 1, args.batch_size, args.seq_length, args.training_size)
+    drawtimevshiddenbackward(fusedbackwardtimes, unfusedbackwardtimes, args.epochs - 1, args.batch_size, args.seq_length, args.training_size)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Addition task')
