@@ -40,8 +40,8 @@ def drawtimevshidden(pythontimes, cudatimes, numepochs, batchsize, seqlen, train
 
 def drawtimevshiddenbackward(pythontimes, cudatimes, numepochs, batchsize, seqlen, trainingsize):
     path_to_this = os.path.abspath(os.path.dirname(__file__))
-    cuda_file_name = 'backward_CUDA_fused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
-    python_file_name = 'backward_python_fused_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    cuda_file_name = 'backward_CUDA_fused_v2_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
+    python_file_name = 'backward_python_fused_v2_batch{}_seq{}_train{}_epochs{}.csv'.format(batchsize, seqlen, trainingsize, numepochs)
     cuda_save_path = os.path.join(path_to_this, cuda_file_name)
     python_save_path = os.path.join(path_to_this, python_file_name)
     np.savetxt(cuda_save_path, cudatimes, delimiter=',')
@@ -49,7 +49,7 @@ def drawtimevshiddenbackward(pythontimes, cudatimes, numepochs, batchsize, seqle
 
     plt.suptitle('Avg. Backward Time per Epoch Vs Hidden Units with Batch Size {}, Seq. Length {}, Training Size {} across {} epochs'.format(batchsize, seqlen, trainingsize, numepochs))
     plt.plot(np.arange(1, len(pythontimes)+1, 1), pythontimes, label='Python')
-    plt.plot(np.arange(1, len(pythontimes)+1, 1), cudatimes, label='CUDA forward, CUDA backward')
+    plt.plot(np.arange(1, len(pythontimes)+1, 1), cudatimes, label='CUDA forward, CUDA backward V2')
     plt.legend()
     plt.xlabel('Hidden units')
     plt.ylabel('Average Time (s)')
