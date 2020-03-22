@@ -38,30 +38,31 @@ namespace {
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> input_gate,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> output_gate,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate,
-		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> candidate_cell) {
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> candidate_cell)
+		{
 	  //batch index
 	  const int n = blockIdx.y;
 	  // column index ie output state index
 	  const int c = blockIdx.x * blockDim.x + threadIdx.x;
-	  if (c < state_size){
+	  if (c < state_size) {
 	  	for (int k = 0; k < X_size; k++) {
-		  gates[n][0][c] += X[n][k] * weights[c][k];
+		  	gates[n][0][c] += X[n][k] * weights[c][k];
 	      gates[n][1][c] += X[n][k] * weights[state_size + c][k];
-		  gates[n][2][c] += X[n][k] * weights[2*state_size + c][k];
-		  gates[n][3][c] += X[n][k] * weights[3*state_size + c][k];
-		}
-		gates[n][0][c] += bias[c];
-		gates[n][1][c] += bias[state_size + c];
-		gates[n][2][c] += bias[2*state_size + c];
-		gates[n][3][c] += bias[3*state_size + c];
+		  	gates[n][2][c] += X[n][k] * weights[2*state_size + c][k];
+		  	gates[n][3][c] += X[n][k] * weights[3*state_size + c][k];
+			}
+			gates[n][0][c] += bias[c];
+			gates[n][1][c] += bias[state_size + c];
+			gates[n][2][c] += bias[2*state_size + c];
+			gates[n][3][c] += bias[3*state_size + c];
 
-		input_gate[n][c] = sigmoid(gates[n][0][c]);
-		output_gate[n][c] = sigmoid(gates[n][1][c]);
-		candidate_cell[n][c] = sigmoid(gates[n][2][c]);
-		forget_gate[n][c] = sigmoid(gates[n][3][c]);
-		new_cell[n][c] =
-			(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
-		new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
+			input_gate[n][c] = sigmoid(gates[n][0][c]);
+			output_gate[n][c] = sigmoid(gates[n][1][c]);
+			candidate_cell[n][c] = sigmoid(gates[n][2][c]);
+			forget_gate[n][c] = sigmoid(gates[n][3][c]);
+			new_cell[n][c] =
+				(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
+			new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
 	  }
 	}
 
@@ -69,27 +70,55 @@ namespace {
 	__global__ void backward_cuda_kernel(
 		const int batch_size,
 		const int state_size,
+		const int input_size,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> grad_h,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_cell,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> grad_cell,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> X,
 		const torch::PackedTensorAccessor32<scalar_t,3,torch::RestrictPtrTraits> gate_weights,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> weights,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_cell,
-		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates) {
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_weights,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_X_intermediates,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_h,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_input)
+		{
 	  // batch index
 	  const int n = blockIdx.y;
 	  // column index ie output state index
 	  const int c = blockIdx.x * blockDim.x + threadIdx.x;
-	  if (c < state_size){
-		  const auto d_new_cell = (grad_h[n][c] * d_sigmoid(new_cell[n][c])) + grad_cell[n][c];
-		  d_old_cell[n][c] = d_new_cell * forget_gate[n][c];
-		  d_gates[n][c] = -d_new_cell * d_sigmoid(gate_weights[n][0][c]); // d_input_gate pre-activation
-		  d_gates[n][state_size + c] = -grad_h[n][c] * d_sigmoid(gate_weights[n][1][c]); // d_output_gate  pre-activation
-		  d_gates[n][2*state_size + c] = d_new_cell * d_sigmoid(gate_weights[n][2][c]); // d_candidate_cell pre-activation
-		  d_gates[n][3*state_size + c] = (d_new_cell * old_cell[n][c]) * d_sigmoid(gate_weights[n][3][c]); // d_forget_gate pre-activation
-	  }
-	}
+	  if (c < state_size) {
+	  	const auto d_new_cell = (grad_h[n][c] * d_sigmoid(new_cell[n][c])) + grad_cell[n][c];
+	  	d_old_cell[n][c] = d_new_cell * forget_gate[n][c];
+	  	d_gates[n][c] = -d_new_cell * d_sigmoid(gate_weights[n][0][c]); // d_input_gate pre-activation
+	  	d_gates[n][state_size + c] = -grad_h[n][c] * d_sigmoid(gate_weights[n][1][c]); // d_output_gate  pre-activation
+	  	d_gates[n][2*state_size + c] = d_new_cell * d_sigmoid(gate_weights[n][2][c]); // d_candidate_cell pre-activation
+	  	d_gates[n][3*state_size + c] = (d_new_cell * old_cell[n][c]) * d_sigmoid(gate_weights[n][3][c]); // d_forget_gate pre-activation
+
+			__syncthreads();
+			for (int k = 0; k < state_size + input_size; k++) {
+				d_X_intermediates[c] = d_gates[n][c] * weights[c][k]
+										+ d_gates[n][state_size + c] * weights[state_size + c][k]
+										+ d_gates[n][2*state_size + c] * weights[2*state_size + c][k]
+										+ d_gates[n][3*state_size + c] * weights[3*state_size + c][k];
+				// synchronize, then one thread just sums up the intermediate sums
+				__syncthreads();
+				if (c == 0) {
+					if (k < state_size) {
+						for (i = 0; i < state_size; i++) {
+							d_old_h[n][k] += d_X_intermediates[i];
+						}
+					} else {
+							d_input[n][k] += d_X_intermediates[i];
+					}
+				}
+				__syncthreads();
+			}
+			//atomicAdd_block();
+		}
 
 }
 
@@ -168,10 +197,15 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor old_cell) {
     const auto batch_size = grad_h.size(0);
     const auto state_size = grad_h.size(1);
+		const auto input_size = X.size(1) - state_size;
 
 	// auto d_new_cell  -- Don't need this as it is not returned, and used only within the kernel
 	auto d_old_cell = torch::zeros_like(old_cell);
 	auto d_gates = torch::zeros({batch_size, 4*state_size}, weights.options());
+
+	auto d_X_intermediates = torch::zeros({state_size}, weights.options());
+	auto d_old_h = torch::zeros({batch_size, state_size}, weights.options());
+	auto d_input = torch::zeros({batch_size, input_size}, weights.options());
 
 	const int threads = 512;
     const dim3 blocks((state_size + threads - 1) / threads, batch_size);
@@ -184,14 +218,23 @@ std::vector<torch::Tensor> backward_cuda(
         new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 		grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 		forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+		X.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 		gate_weights.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
 		old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+		weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 		d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-		d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
+		d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()),
+		d_X_intermediates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()),
+		d_old_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()),
+		d_input.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
     }));
 
 	//std::cout << "cu: d_gates[0][12]" << d_gates[1][1] << std::endl;
 	//std::cout << "cu: d_old_cell[1][300]" << d_old_cell[1][300] << std::endl;
+
+
+	//!!!!!!!! NEED TO SET THIS SIZE
+	//auto d_weights = torch::zeros({4*state_size, X.size(1)}, weights.options());
 
 	torch::Tensor d_weights = d_gates.t().mm(X);
 
@@ -199,9 +242,9 @@ std::vector<torch::Tensor> backward_cuda(
 	// keepdim=true means we're getting a result that has 1 row, columns same as before
 	torch::Tensor d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
 
-	torch::Tensor d_X = d_gates.mm(weights);
-	torch::Tensor d_old_h = d_X.slice(1, 0, state_size); // first state_size columns
-	torch::Tensor d_input = d_X.slice(1, state_size); // from column [state_size + 1] to the end
+	//torch::Tensor d_X = d_gates.mm(weights);
+	//torch::Tensor d_old_h = d_X.slice(1, 0, state_size); // first state_size columns
+	//torch::Tensor d_input = d_X.slice(1, state_size); // from column [state_size + 1] to the end
 
 	return {d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates};
 }
