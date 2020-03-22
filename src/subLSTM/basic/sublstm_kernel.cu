@@ -103,15 +103,17 @@ namespace {
 										+ d_gates[n][state_size + c] * weights[state_size + c][k]
 										+ d_gates[n][2*state_size + c] * weights[2*state_size + c][k]
 										+ d_gates[n][3*state_size + c] * weights[3*state_size + c][k];
-				// synchronize, then one thread just sums up the intermediate sums
+				// synchronize, then one thread sums up the intermediate sums
 				__syncthreads();
 				if (c == 0) {
 					if (k < state_size) {
 						for (int i = 0; i < state_size; i++) {
-							d_old_h[n][k] += d_X_intermediates[i];
+								d_old_h[n][k] += d_X_intermediates[i];
 						}
 					} else {
-							d_input[n][k] += d_X_intermediates[i];
+						for (int i = 0; i < state_size; i++) {
+								d_input[n][k] += d_X_intermediates[i];
+						}
 					}
 				}
 				__syncthreads();
@@ -207,7 +209,7 @@ std::vector<torch::Tensor> backward_cuda(
 	auto d_input = torch::zeros({batch_size, input_size}, weights.options());
 
 	const int threads = 512;
-    const dim3 blocks((state_size + threads - 1) / threads, batch_size);
+    const dim3 blocks((state_size + input_gate + threads - 1) / threads, batch_size);
 
     AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
       backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
