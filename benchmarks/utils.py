@@ -117,7 +117,7 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         running_loss += loss.item()
 
-
+        """
         # Print the loss every log-interval mini-batches and save it to the trace
         if i % log_interval == log_interval - 1:
             if verbose:
@@ -126,7 +126,7 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
             loss_trace.append(running_loss / log_interval)
             running_loss = 0.0
-        
+        """
 
 
     #print("total forward time: ", sum(model.rnn.times))
