@@ -84,7 +84,7 @@ namespace {
 		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_X_intermediates,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_h,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_input)
-		{
+	{
 	  // batch index
 	  const int n = blockIdx.y;
 	  // column index ie output state index
@@ -116,10 +116,10 @@ namespace {
 						}
 					}
 				}
-				__syncthreads();
 			}
 			//atomicAdd_block();
 		}
+	}
 
 }
 
@@ -195,10 +195,11 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor X,
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
-    torch::Tensor old_cell) {
-    const auto batch_size = grad_h.size(0);
-    const auto state_size = grad_h.size(1);
-		const auto input_size = X.size(1) - state_size;
+    torch::Tensor old_cell)
+{
+  const auto batch_size = grad_h.size(0);
+  const auto state_size = grad_h.size(1);
+	const auto input_size = X.size(1) - state_size;
 
 	// auto d_new_cell  -- Don't need this as it is not returned, and used only within the kernel
 	auto d_old_cell = torch::zeros_like(old_cell);
