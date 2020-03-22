@@ -209,27 +209,27 @@ std::vector<torch::Tensor> backward_cuda(
 	auto d_input = torch::zeros({batch_size, input_size}, weights.options());
 
 	const int threads = 512;
-    const dim3 blocks((state_size + input_gate + threads - 1) / threads, batch_size);
+  const dim3 blocks((state_size + input_size + threads - 1) / threads, batch_size);
 
-    AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
-      backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
-        batch_size,
-        state_size,
-				input_size,
-				grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-        new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				X.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				gate_weights.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
-				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				d_X_intermediates.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
-				d_old_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				d_input.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
-    }));
+  AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+    backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
+      batch_size,
+      state_size,
+			input_size,
+			grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+      new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			X.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			gate_weights.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
+			old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			d_X_intermediates.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+			d_old_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			d_input.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
+  }));
 
 	//std::cout << "cu: d_gates[0][12]" << d_gates[1][1] << std::endl;
 	//std::cout << "cu: d_old_cell[1][300]" << d_old_cell[1][300] << std::endl;
