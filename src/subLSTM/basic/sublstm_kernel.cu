@@ -81,7 +81,7 @@ namespace {
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> weights,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates,
-		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_X_intermediates,
+		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_X_intermediates,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_h,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_input)
 		{
@@ -224,7 +224,7 @@ std::vector<torch::Tensor> backward_cuda(
 				weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 				d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 				d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				d_X_intermediates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_X_intermediates.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
 				d_old_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 				d_input.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
     }));
