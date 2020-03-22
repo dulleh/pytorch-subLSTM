@@ -107,7 +107,7 @@ namespace {
 				__syncthreads();
 				if (c == 0) {
 					if (k < state_size) {
-						for (i = 0; i < state_size; i++) {
+						for (int i = 0; i < state_size; i++) {
 							d_old_h[n][k] += d_X_intermediates[i];
 						}
 					} else {
