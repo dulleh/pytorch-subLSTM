@@ -70,7 +70,7 @@ def main(args):
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    # additional parameters that need to be removed if you want non-deterministic behaviour
+    # For faster performance, set to non-deterministic, and experiment with benchmark
     # https://pytorch.org/docs/stable/notes/randomness.html
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -230,8 +230,8 @@ def main(args):
                     }, f)
                 best_loss = val_loss
             """
-        drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "AoT-compiled {} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
-        drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        #drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "AoT-compiled {} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        #drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
         if args.timing:
           print('total time to train {}'.format(total_time))
           print('time spent in forward: {}'.format(sum([item for sublist in model.rnn.epochtimes for item in sublist])))

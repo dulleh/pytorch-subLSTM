@@ -7,6 +7,18 @@ import matplotlib.pyplot as plt
 
 from subLSTM.basic.nn import SubLSTMCell, SubLSTMCudaCell, SubLSTM
 
+class Timings:
+    times = []
+    backwardtimes = []
+    memoryrecords = []
+    cachedmemoryrecords = []
+    epochtimes = []
+    epochbackwardtimes = []
+    epochmemoryrecords = []
+    epochcachedmemoryrecords = []
+    totalforwardtime = 0
+    totalbackwardtime = 0
+
 def detach_hidden_state(hidden_state):
     """
     Use this method to detach the hidden state from the previous batch's history.
@@ -46,7 +58,7 @@ def drawmemory(epochs, cachedepochs, model_name):
     plt.show()
 
 def train(model, data_loader, criterion, optimizer, grad_clip,
-        track_hidden, log_interval, device, verbose):
+        track_hidden, log_interval, device, verbose, timings):
     """
     Train the model for one epoch over the whole dataset.
     """
@@ -57,17 +69,17 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
 
-    model.rnn.times = []
-    model.rnn.backwardtimes = []
-    model.rnn.memoryrecords = []
-    model.rnn.cachedmemoryrecords = []
+    timings.times = []
+    timings.backwardtimes = []
+    timings.memoryrecords = []
+    timings.cachedmemoryrecords = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
         inputs, labels = data
 
         # The expectation is that this should be the case anyway and if make sure it is at intialisation.
-        #inputs, labels = inputs.to(device), labels.to(device)
+        inputs, labels = inputs.to(device), labels.to(device)
 
         # Set all gradients to zero.
         optimizer.zero_grad()
@@ -78,7 +90,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         # hidden = detach_hidden_state(hidden) if track_hidden else None
 
         # Forward and backward steps
+
+        forwardstart = time.time()
         outputs, hidden = model(inputs)
+        timings.totalforwardtime += time.time() - forwardstart
 
         #if i == 0:
         #    print("outputs ", outputs)
@@ -89,8 +104,8 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
         backwardstart = time.time()
         loss.backward()
         btime = time.time() - backwardstart
-        model.rnn.backwardtimes.append(btime)
-        model.rnn.totalbackwardtime += btime
+        timings.totalbackwardtime += btime
+        timings.backwardtimes.append(btime)
 
         del outputs
         del hidden
@@ -119,7 +134,6 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         running_loss += loss.item()
 
-        """
         # Print the loss every log-interval mini-batches and save it to the trace
         if i % log_interval == log_interval - 1:
             if verbose:
@@ -128,16 +142,11 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
             loss_trace.append(running_loss / log_interval)
             running_loss = 0.0
-        """
-
-
-    #print("total forward time: ", sum(model.rnn.times))
-    #print("total backward time: ", sum(model.rnn.backwardtimes))
-    model.rnn.epochtimes.append(model.rnn.times)
-    model.rnn.epochbackwardtimes.append(model.rnn.backwardtimes)
-    model.rnn.epochmemory.append(model.rnn.memoryrecords)
-    model.rnn.epochcachedmemory.append(model.rnn.cachedmemoryrecords)
-
+    
+    timings.epochtimes.append(timings.times)
+    timings.epochbackwardtimes.append(timings.backwardtimes)
+    timings.epochmemoryrecords.append(timings.memoryrecords)
+    timings.epochcachedmemoryrecords.append(timings.cachedmemoryrecords)
     return loss_trace
 
 

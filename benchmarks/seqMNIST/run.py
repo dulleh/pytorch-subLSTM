@@ -19,7 +19,7 @@ sys.path.insert(0, '../../src/')
 sys.path.insert(0, '../')
 
 from wrappers import init_model
-from utils import train, test, compute_accuracy
+from utils import train, test, compute_accuracy, drawepochs, drawmemory, Timings
 
 ########################################################################################
 # PARSE THE INPUT
@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser(description='PyTorch Sequential MNIST LSTM mode
 
 # Model parameters
 parser.add_argument('--model', type=str, default='subLSTM',
-    help='RNN model tu use. One of subLSTM|fix-subLSTM|LSTM|GRU')
+    help='RNN model tu use. One of subLSTM|fix-subLSTM|LSTM|GRU|subLSTMCuda')
 parser.add_argument('--nlayers', type=int, default=1,
     help='number of layers')
 parser.add_argument('--nhid', type=int, default=50,
@@ -78,6 +78,8 @@ parser.add_argument('--cuda', action='store_true',
 # Print options
 parser.add_argument('--verbose', action='store_true',
     help='print the progress of training to std output.')
+parser.add_argument('--timing', action='store_true',
+    help='print average training times')
 
 args = parser.parse_args()
 
@@ -85,13 +87,22 @@ args = parser.parse_args()
 # SETTING UP THE DIVICE AND SEED
 ########################################################################################
 
+if args.cuda and not torch.cuda.is_available():
+    print('\n\tWARNING: CUDA requested but not available.\n')
+print("cuda is available: {}".format(torch.cuda.is_available()))
+print("cudnn enabled: {}".format(torch.backends.cudnn.enabled))
+
+torch.cuda.empty_cache()
 torch.manual_seed(args.seed)
+# For faster performance, set to non-deterministic, and experiment with benchmark
+# https://pytorch.org/docs/stable/notes/randomness.html
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 if args.cuda and torch.cuda.is_available():
     torch.cuda.manual_seed(args.seed)
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
-
 
 ########################################################################################
 # LOAD DATA
@@ -133,6 +144,7 @@ model = init_model(
     input_size=input_size, output_size=10, class_task=True,
     dropout=0.0, device=device, script=args.script
 )
+timings = Timings()
 
 ########################################################################################
 # SET UP OPTIMIZER & OBJECTIVE FUNCTION
@@ -170,7 +182,10 @@ criterion = nn.CrossEntropyLoss()
 
 epochs, log_interval = args.epochs, args.log_interval
 loss_trace, best_loss = [], np.inf
-save_path = args.save + '/{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
+save_directory_name = '{0}_{1}_{2}'.format(args.model, args.nlayers, args.nhid)
+path_to_this = os.path.abspath(os.path.dirname(__file__))
+save_path = os.path.join(path_to_this, args.save, save_directory_name)
+total_time = 0
 
 if not os.path.exists(save_path):
     os.makedirs(save_path)
@@ -208,7 +223,8 @@ try:
             log_interval=log_interval,
             device=device,
             track_hidden=args.track_hidden,
-            verbose=args.verbose
+            verbose=args.verbose,
+            timings=timings
         )
 
         loss_trace.extend(epoch_trace)
@@ -216,16 +232,19 @@ try:
         # Check validation loss
         val_loss = test(model, validation_data, criterion, device)
 
+        this_epoch_time = time.time() - start_time
+        total_time += this_epoch_time
+
         if args.verbose:
             print('epoch {} finished \
                 \n\ttotal time {} \
                 \n\ttraining_loss = {:5.4f} \
                 \n\tvalidation_loss = {:5.4f}'.format(
                     e + 1,
-                    time.time() - start_time,
+                    this_epoch_time,
                     np.sum(epoch_trace) / len(epoch_trace),
                     val_loss))
-
+        """
         if val_loss < best_loss:
             with open(save_path + '/model.pt', 'wb') as f:
                 torch.save({
@@ -243,6 +262,13 @@ try:
                     'loss': val_loss
                 }, f)
             best_loss = val_loss
+        """
+        #drawepochs(model.rnn.epochtimes, model.rnn.epochbackwardtimes, "AoT-compiled {} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        #drawmemory(model.rnn.epochmemory, model.rnn.epochcachedmemory, "{} with {} batch size and {} hidden units".format(args.model, batch_size, hidden_size))
+        if args.timing:
+          print('total time to train {}'.format(total_time))
+          print('time spent in forward: {}'.format(timings.totalforwardtime))
+          print('time spent in backward: {}'.format(timings.totalbackwardtime))
 
 except KeyboardInterrupt:
     if args.verbose:
