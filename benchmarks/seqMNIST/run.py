@@ -96,7 +96,7 @@ torch.cuda.empty_cache()
 torch.manual_seed(args.seed)
 # For faster performance, set to non-deterministic, and experiment with benchmark
 # https://pytorch.org/docs/stable/notes/randomness.html
-torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 if args.cuda and torch.cuda.is_available():
     torch.cuda.manual_seed(args.seed)
