@@ -6,10 +6,8 @@
 #include <torch/extension.h>
 #include <iostream>
 #include <cassert>
-#include <chrono>
 #include <fstream>
 #include <cmath>
-//namespace py = pybind11;
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -33,22 +31,14 @@ std::vector<torch::Tensor> forward(
     torch::Tensor bias,
     torch::Tensor old_h,
     torch::Tensor old_cell) {
-  //std::ofstream outfile("cudaforwardtimes.csv", std::ios_base::app);
 
   CHECK_INPUT(input);
   CHECK_INPUT(weights);
   CHECK_INPUT(bias);
   CHECK_INPUT(old_h);
   CHECK_INPUT(old_cell);
-  auto start = std::chrono::high_resolution_clock::now();
 
-  auto output = forward_cuda(input, weights, bias, old_h, old_cell);
-  auto end = std::chrono::high_resolution_clock::now();
-
-  auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-  //outfile << duration.count() / std::pow(10, 9) << ",";
-
-  return output;
+  return forward_cuda(input, weights, bias, old_h, old_cell);
 }
 
 
