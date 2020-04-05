@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import time
+
+from timeit import default_timer as timer
 
 import matplotlib.pyplot as plt
 
@@ -69,10 +70,10 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
     # Keep track or the hidden state over the whole epoch. This allows faster training?
     hidden = None
 
-    timings.times = []
-    timings.backwardtimes = []
-    timings.memoryrecords = []
-    timings.cachedmemoryrecords = []
+    #timings.times = []
+    #timings.backwardtimes = []
+    #timings.memoryrecords = []
+    #timings.cachedmemoryrecords = []
 
     for i, data in enumerate(data_loader):
         # Load one batch into the device being used.
@@ -91,9 +92,9 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         # Forward and backward steps
 
-        forwardstart = time.time()
+        forwardstart = timer()
         outputs, hidden = model(inputs)
-        timings.totalforwardtime += time.time() - forwardstart
+        timings.totalforwardtime += timer() - forwardstart
 
         #if i == 0:
         #    print("outputs ", outputs)
@@ -101,11 +102,11 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
         loss = criterion(outputs, labels)
 
-        backwardstart = time.time()
+        backwardstart = timer()
         loss.backward()
-        btime = time.time() - backwardstart
+        btime = timer() - backwardstart
         timings.totalbackwardtime += btime
-        timings.backwardtimes.append(btime)
+        #timings.backwardtimes.append(btime)
 
         del outputs
         del hidden
@@ -142,11 +143,11 @@ def train(model, data_loader, criterion, optimizer, grad_clip,
 
             loss_trace.append(running_loss / log_interval)
             running_loss = 0.0
-    
-    timings.epochtimes.append(timings.times)
-    timings.epochbackwardtimes.append(timings.backwardtimes)
-    timings.epochmemoryrecords.append(timings.memoryrecords)
-    timings.epochcachedmemoryrecords.append(timings.cachedmemoryrecords)
+
+    #timings.epochtimes.append(timings.times)
+    #timings.epochbackwardtimes.append(timings.backwardtimes)
+    #timings.epochmemoryrecords.append(timings.memoryrecords)
+    #timings.epochcachedmemoryrecords.append(timings.cachedmemoryrecords)
     return loss_trace
 
 

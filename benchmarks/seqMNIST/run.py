@@ -268,6 +268,8 @@ try:
         if args.timing:
           print('total time to train {}'.format(total_time))
           print('time spent in forward: {}'.format(timings.totalforwardtime))
+          if args.model != 'LSTM':
+              print('time spent in nn.subLSTMCUdaCell.forward: {}'.format(model.rnn.totalforwardtime))
           print('time spent in backward: {}'.format(timings.totalbackwardtime))
 
 except KeyboardInterrupt:
