@@ -1,4 +1,6 @@
 # coding: utf-8
+import sys
+import os
 import argparse
 import time
 import math
@@ -10,11 +12,16 @@ from torch.autograd import Variable
 import data
 import model
 
+sys.path.insert(0, '../../src/')
+sys.path.insert(0, '../')
+
+path_to_this = os.path.abspath(os.path.dirname(__file__))
+
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
-parser.add_argument('--data', type=str, default='./data/penn',
+parser.add_argument('--data', type=str, default=os.path.join(path_to_this, 'data','penn'),
           help='location of the data corpus')
-parser.add_argument('--model', type=str, default='subLSTM',
-          help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU, subLSTM)')
+parser.add_argument('--model', type=str, default='subLSTMCuda',
+          help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU, subLSTM, subLSTMCuda)')
 parser.add_argument('--emsize', type=int, default=200,
           help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=200,
@@ -103,18 +110,26 @@ criterion = nn.CrossEntropyLoss()
 # Training code
 ###############################################################################
 
-def repackage_hidden(h):
-  """Wraps hidden states in new Variables, to detach them from their history."""
+def detach_hidden_state(hidden_state):
+  """Wraps hidden states in new Variables, to detach them from their history.
   if h is None:
     return None
   if type(h) == Variable:
     return Variable(h.data)
   elif type(h) == list:
-    [ repackage_hidden(x) for x in h ]
+    [ detach_hidden_state(x) for x in h ]
   elif type(h) == tuple:
-    tuple([ repackage_hidden(x) for x in h ])
+    tuple([ detach_hidden_state(x) for x in h ])
   else:
-    return tuple(repackage_hidden(v) for v in h)
+    return tuple(detach_hidden_state(v) for v in h)
+  """
+  if isinstance(hidden_state, torch.Tensor):
+    return hidden_state.detach()
+  elif isinstance(hidden_state, list):
+    return [detach_hidden_state(h) for h in hidden_state]
+  elif isinstance(hidden_state, tuple):
+    return tuple(detach_hidden_state(h) for h in hidden_state)
+  return None
 
 
 # get_batch subdivides the source data into chunks of length args.bptt.
@@ -129,7 +144,7 @@ def repackage_hidden(h):
 
 def get_batch(source, i, evaluation=False):
   seq_len = min(args.bptt, len(source) - 1 - i)
-  data = Variable(source[i:i+seq_len], volatile=evaluation)
+  data = Variable(source[i:i+seq_len].view(-1), volatile=evaluation)
   target = Variable(source[i+1:i+1+seq_len].view(-1))
   return data, target
 
@@ -145,8 +160,8 @@ def evaluate(data_source):
     output, hidden = model(data, hidden)
     output_flat = output.view(-1, ntokens)
     total_loss += len(data) * criterion(output_flat, targets).data
-    hidden = repackage_hidden(hidden)
-  return total_loss[0] / len(data_source)
+    hidden = detach_hidden_state(hidden)
+  return total_loss.item() / len(data_source)
 
 if args.optim == 'adam':
   optimizer = optim.Adam(model.parameters(), lr=args.lr, eps=1e-9, betas=[0.9, 0.98]) # 0.0001
@@ -165,35 +180,40 @@ elif args.optim == 'adadelta':
 
 def train():
   # Turn on training mode which enables dropout.
-  model.train()
-  total_loss = 0
+  model.train(True)
+  total_loss = 0.0
   start_time = time.time()
   ntokens = len(corpus.dictionary)
-  hidden = model.init_hidden(args.batch_size)
+  #hidden = model.init_hidden(args.batch_size)
+  hidden = None
   for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
     data, targets = get_batch(train_data, i)
+    optimizer.zero_grad()
     # Starting each batch, we detach the hidden state from how it was previously produced.
     # If we didn't, the model would try backpropagating all the way to start of the dataset.
-    hidden = repackage_hidden(hidden)
-    optimizer.zero_grad()
+    hidden = detach_hidden_state(hidden)
+
+    # forward
     output, hidden = model(data, hidden)
-    loss = criterion(output.view(-1, ntokens), targets)
+    output = output.view(-1, ntokens)
+
+    loss = criterion(output, targets)
     loss.backward()
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-    torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+    nn.utils.clip_grad_norm_(model.parameters(), args.clip)
     optimizer.step()
 
-    total_loss += loss.data
+    total_loss += loss.item()
 
     if batch % args.log_interval == 0 and batch > 0:
-      cur_loss = total_loss[0] / args.log_interval
+      cur_loss = total_loss / args.log_interval
       elapsed = time.time() - start_time
       print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.6f} | ms/batch {:5.2f} | '
           'loss {:5.2f} | ppl {:8.2f}'.format(
         epoch, batch, len(train_data) // args.bptt, lr,
         elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-      total_loss = 0
+      total_loss = 0.0
       start_time = time.time()
 
 # Loop over epochs.

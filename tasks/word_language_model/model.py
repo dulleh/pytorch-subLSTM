@@ -1,7 +1,12 @@
+import sys
+import os
 import torch.nn as nn
 from torch.autograd import Variable
 
-from subLSTM.nn import SubLSTM
+sys.path.insert(0, '../../src/')
+sys.path.insert(0, '../')
+
+from subLSTM.basic.nn import SubLSTM
 
 
 class RNNModel(nn.Module):
@@ -14,7 +19,19 @@ class RNNModel(nn.Module):
         if rnn_type in ['LSTM', 'GRU']:
             self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout)
         elif rnn_type == 'subLSTM':
-            self.rnn = SubLSTM(ninp, nhid, nlayers, dropout=dropout)
+            self.rnn = SubLSTM(input_size=ninp,
+                                 hidden_size=nhid,
+                                 num_layers=nlayers,
+                                 cell_type='vanilla',
+                                 batch_first=True,
+                                 dropout=dropout)
+        elif rnn_type == 'subLSTMCuda':
+             self.rnn = SubLSTM(input_size=ninp,
+                                  hidden_size=nhid,
+                                  num_layers=nlayers,
+                                  cell_type='cuda',
+                                  batch_first=True,
+                                  dropout=dropout)
         else:
             try:
                 nonlinearity = {'RNN_TANH': 'tanh', 'RNN_RELU': 'relu'}[rnn_type]

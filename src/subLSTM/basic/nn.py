@@ -237,8 +237,9 @@ class SubLSTM(nn.Module):
                 pass
 
     def flatten_parameters(self):
-        for module in self.children():
-            module.flattenParameters()
+        #for module in self.children():
+        #    module.flattenParameters()
+        pass
 
     #@staticmethod
     def forward(self, input, hx=None):
