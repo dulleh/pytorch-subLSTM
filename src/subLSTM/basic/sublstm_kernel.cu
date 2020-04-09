@@ -173,8 +173,8 @@ std::vector<torch::Tensor> backward_cuda(
 	auto d_old_cell = torch::zeros_like(old_cell);
 	auto d_gates = torch::zeros({batch_size, 4*state_size}, weights.options());
 
-	const int threads = 512;
-    const dim3 blocks((state_size + threads - 1) / threads, batch_size);
+	const int threads = 1024;
+	const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 
     AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
       backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
