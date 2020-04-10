@@ -278,6 +278,8 @@ class SubLSTM(nn.Module):
 
             starttime = timer()
 
+            #print("outputs[time].shape ", outputs[time].shape)
+            #print("len(hx[l]) ", len(hx[l]))
             out, c = layer(outputs[time], hx[l])
 
             lapsedtime = timer() - starttime

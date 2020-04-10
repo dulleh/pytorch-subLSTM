@@ -10,9 +10,6 @@ def sublstm(input, hidden, input_layer, recurrent_layer):
     #print("old_cell", hidden[1])
 
     h_tm1, c_tm1 = hidden
-    ii = input_layer(input)
-    ht = recurrent_layer(h_tm1)
-    print("i size: ", input.shape, " h size: ", ht.shape)
     proj_input = torch.sigmoid(input_layer(input) + recurrent_layer(h_tm1))
 
     in_gate, out_gate, z_t, f_gate = proj_input.chunk(4, 1)

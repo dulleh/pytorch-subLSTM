@@ -79,7 +79,7 @@ class RNNModel(nn.Module):
         if self.rnn_type == 'LSTM':
             return (Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()),
                     Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()))
-        elif self.rnn_type == 'subLSTM':
+        elif self.rnn_type in ['subLSTM','subLSTMCuda']:
             return None
         else:
             return Variable(weight.new(self.nlayers, bsz, self.nhid).zero_())

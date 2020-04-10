@@ -158,7 +158,8 @@ def evaluate(data_source):
   with torch.no_grad():
       total_loss = 0
       ntokens = len(corpus.dictionary)
-      hidden = model.init_hidden(eval_batch_size)
+      #hidden = model.init_hidden(eval_batch_size)
+      hidden = None
       for i in range(0, data_source.size(0) - 1, args.bptt):
         data, targets = get_batch(data_source, i)
 
@@ -166,7 +167,7 @@ def evaluate(data_source):
         targets = targets.t().contiguous()
 
         output, hidden = model(data, hidden)
-        
+
         total_loss += data.size(1) * criterion(output.transpose(0,1).reshape(-1, ntokens), targets).data
         hidden = detach_hidden_state(hidden)
       return total_loss.item() / len(data_source)
