@@ -142,12 +142,12 @@ def detach_hidden_state(hidden_state):
 # by the batchify function. The chunks are along dimension 0, corresponding
 # to the seq_len dimension in the LSTM.
 
-def get_batch(source, i, evaluation=False):
-  seq_len = min(args.bptt, len(source) - 1 - i)
-  data = Variable(source[i:i+seq_len], volatile=evaluation)
+def get_batch(source, i):
+  seq_len = min(args.bptt, source.size(0) - 1 - i)
+  data = Variable(source[i:i+seq_len])
   target = Variable(source[i+1:i+1+seq_len].view(-1))
 
-  print("input shape: ", data.shape)
+  #print("input shape: ", data.shape)
 
   return data, target
 
@@ -155,16 +155,21 @@ def get_batch(source, i, evaluation=False):
 def evaluate(data_source):
   # Turn on evaluation mode which disables dropout.
   model.eval()
-  total_loss = 0
-  ntokens = len(corpus.dictionary)
-  hidden = model.init_hidden(eval_batch_size)
-  for i in range(0, data_source.size(0) - 1, args.bptt):
-    data, targets = get_batch(data_source, i, evaluation=True)
-    output, hidden = model(data, hidden)
-    output_flat = output.view(-1, ntokens)
-    total_loss += len(data) * criterion(output_flat, targets).data
-    hidden = detach_hidden_state(hidden)
-  return total_loss.item() / len(data_source)
+  with torch.no_grad():
+      total_loss = 0
+      ntokens = len(corpus.dictionary)
+      hidden = model.init_hidden(eval_batch_size)
+      for i in range(0, data_source.size(0) - 1, args.bptt):
+        data, targets = get_batch(data_source, i)
+
+        data = data.t().contiguous()
+        targets = targets.t().contiguous()
+
+        output, hidden = model(data, hidden)
+        
+        total_loss += data.size(1) * criterion(output.transpose(0,1).reshape(-1, ntokens), targets).data
+        hidden = detach_hidden_state(hidden)
+      return total_loss.item() / len(data_source)
 
 if args.optim == 'adam':
   optimizer = optim.Adam(model.parameters(), lr=args.lr, eps=1e-9, betas=[0.9, 0.98]) # 0.0001
@@ -196,10 +201,14 @@ def train():
     # If we didn't, the model would try backpropagating all the way to start of the dataset.
     hidden = detach_hidden_state(hidden)
 
+    data = data.t().contiguous()
+    #targets = targets.t().contiguous()
+
     # forward
     output, hidden = model(data, hidden)
 
-    loss = criterion(output.view(-1, ntokens), targets)
+    #print("output shape ", output.shape, " targets shape ", targets.shape)
+    loss = criterion(output.transpose(0,1).reshape(-1, ntokens), targets)
     loss.backward()
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
