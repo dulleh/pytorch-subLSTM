@@ -144,8 +144,11 @@ def detach_hidden_state(hidden_state):
 
 def get_batch(source, i, evaluation=False):
   seq_len = min(args.bptt, len(source) - 1 - i)
-  data = Variable(source[i:i+seq_len].view(-1), volatile=evaluation)
+  data = Variable(source[i:i+seq_len], volatile=evaluation)
   target = Variable(source[i+1:i+1+seq_len].view(-1))
+
+  print("input shape: ", data.shape)
+
   return data, target
 
 
@@ -195,9 +198,8 @@ def train():
 
     # forward
     output, hidden = model(data, hidden)
-    output = output.view(-1, ntokens)
 
-    loss = criterion(output, targets)
+    loss = criterion(output.view(-1, ntokens), targets)
     loss.backward()
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
