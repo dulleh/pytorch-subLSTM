@@ -28,9 +28,6 @@ namespace {
 		const int X_size,
 		const int batch_size,
 		const int state_size,
-		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> X,
-		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> weights,
-		const torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> bias,
 		torch::PackedTensorAccessor32<scalar_t,3,torch::RestrictPtrTraits> gates,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_h,
@@ -44,25 +41,14 @@ namespace {
 	  // column index ie output state index
 	  const int c = blockIdx.x * blockDim.x + threadIdx.x;
 	  if (c < state_size){
-	  	for (int k = 0; k < X_size; k++) {
-		  gates[n][0][c] += X[n][k] * weights[c][k];
-	      gates[n][1][c] += X[n][k] * weights[state_size + c][k];
-		  gates[n][2][c] += X[n][k] * weights[2*state_size + c][k];
-		  gates[n][3][c] += X[n][k] * weights[3*state_size + c][k];
+			input_gate[n][c] = sigmoid(gates[n][0][c]);
+			output_gate[n][c] = sigmoid(gates[n][1][c]);
+			candidate_cell[n][c] = sigmoid(gates[n][2][c]);
+			forget_gate[n][c] = sigmoid(gates[n][3][c]);
+			new_cell[n][c] =
+				(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
+			new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
 		}
-		gates[n][0][c] += bias[c];
-		gates[n][1][c] += bias[state_size + c];
-		gates[n][2][c] += bias[2*state_size + c];
-		gates[n][3][c] += bias[3*state_size + c];
-
-		input_gate[n][c] = sigmoid(gates[n][0][c]);
-		output_gate[n][c] = sigmoid(gates[n][1][c]);
-		candidate_cell[n][c] = sigmoid(gates[n][2][c]);
-		forget_gate[n][c] = sigmoid(gates[n][3][c]);
-		new_cell[n][c] =
-			(old_cell[n][c] * forget_gate[n][c]) + (candidate_cell[n][c] - input_gate[n][c]);
-		new_h[n][c] = sigmoid(new_cell[n][c]) - output_gate[n][c];
-	  }
 	}
 
 	template <typename scalar_t>
@@ -101,7 +87,7 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_cell)
 {
   auto X = torch::cat({old_h, input}, /*dim=*/1);
-
+  auto gate_weights = torch::addmm(bias, X, weights.transpose(0, 1));
   //std::cout << "X: " << X << std::endl;
   //std::cout << "weights: " << weights << std::endl;
  // std::cout << "bias: " << bias << std::endl;
@@ -114,7 +100,7 @@ std::vector<torch::Tensor> forward_cuda(
 //  std::cout << "batch_size: " << batch_size << std::endl;
 //  std::cout << "state_size: " << state_size << std::endl;
 
-  auto gates = torch::zeros({batch_size, 4, state_size}, weights.options());
+	auto gates = gate_weights.view({batch_size, 4, state_size});
   auto new_h = torch::zeros_like(old_cell);
   auto new_cell = torch::zeros_like(old_cell);
   auto input_gate = torch::zeros_like(old_cell);
@@ -137,9 +123,6 @@ std::vector<torch::Tensor> forward_cuda(
 		X_size,
 		batch_size,
 		state_size,
-		X.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-        weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-		bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
 	    gates.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
 		old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
         new_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),

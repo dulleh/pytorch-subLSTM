@@ -139,19 +139,19 @@ def evaluate(data_source):
   # Turn on evaluation mode which disables dropout.
   model.eval()
   with torch.no_grad():
-      total_loss = torch.zeros(1)
+      total_loss = torch.zeros(1).cuda()
       ntokens = len(corpus.dictionary)
       #hidden = model.init_hidden(eval_batch_size)
       hidden = None
       for i in range(0, data_source.size(0) - 1, args.bptt):
         data, targets = get_batch(data_source, i)
 
-        data = data.t().contiguous()
+        #data = data.t().contiguous()
         #targets = targets.t().contiguous()
 
         output, hidden = model(data, hidden)
 
-        total_loss += data.size(1) * criterion(output.transpose(0,1).reshape(-1, ntokens), targets).data
+        total_loss += data.size(0) * criterion(output.reshape(-1, ntokens), targets).data
         hidden = detach_hidden_state(hidden)
       return total_loss.data[0] / len(data_source)
 
@@ -176,9 +176,7 @@ def train():
   train_data = batchify(corpus.train, args.batch_size)
   # Turn on training mode which enables dropout.
   model.train(True)
-  total_loss = torch.zeros(1)
-  forward_time = 0
-  backward_time = 0
+  total_loss = torch.zeros(1).cuda()
   start_time = time.time()
   ntokens = len(corpus.dictionary)
   #hidden = model.init_hidden(args.batch_size)
@@ -191,37 +189,32 @@ def train():
     # If we didn't, the model would try backpropagating all the way to start of the dataset.
     hidden = detach_hidden_state(hidden)
 
-    data = data.t().contiguous()
+    #data = data.t().contiguous()
 
     # forward
-    forwardstart = time.time()
     output, hidden = model(data, hidden)
-    forward_time += time.time() - forwardstart
 
     #print("output shape ", output.shape, " targets shape ", targets.shape)
-    loss = criterion(output.transpose(0,1).reshape(-1, ntokens), targets)
+    loss = criterion(output.reshape(-1, ntokens), targets)
 
-    backwardstart = time.time()
     loss.backward()
-    backward_time += time.time() - backwardstart
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
     nn.utils.clip_grad_norm_(model.parameters(), args.clip)
     optimizer.step()
 
     total_loss += loss.data
-    """
+
     if batch % args.log_interval == 0 and batch > 0:
-      cur_loss = total_loss / args.log_interval
+      cur_loss = total_loss.data[0] / args.log_interval
       elapsed = time.time() - start_time
       print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.6f} | ms/batch {:5.2f} | '
           'loss {:5.2f} | ppl {:8.2f}'.format(
         epoch, batch, len(train_data) // args.bptt, lr,
         elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-      total_loss = 0.0
+      total_loss = torch.zeros(1).cuda()
       start_time = time.time()
-    """
-  print("forward time: ", forward_time, " backward time: ", backward_time)
+
 
 # Loop over epochs.
 lr = args.lr

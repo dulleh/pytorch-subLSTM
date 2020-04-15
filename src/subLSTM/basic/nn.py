@@ -284,17 +284,17 @@ class SubLSTM(nn.Module):
 
             self.flatten_parameters()
 
-            starttime = timer()
+            #starttime = timer()
 
             #print("outputs[time].shape ", outputs[time].shape)
             #print("len(hx[l]) ", len(hx[l]))
             out, c = layer(outputs[time], hx[l])
 
-            lapsedtime = timer() - starttime
+            #lapsedtime = timer() - starttime
             #self.times.append(lapsedtime)
 
 
-            self.totalforwardtime += lapsedtime
+            #self.totalforwardtime += lapsedtime
 
             #self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
             #self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)

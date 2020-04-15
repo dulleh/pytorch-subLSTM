@@ -18,20 +18,20 @@ class RNNModel(nn.Module):
         self.encoder = nn.Embedding(ntoken, ninp)
         if rnn_type in ['LSTM', 'GRU']:
             #self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout, batch_first=False)
-            self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout, batch_first=True)
+            self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout, batch_first=False)
         elif rnn_type == 'subLSTM':
             self.rnn = SubLSTM(input_size=ninp,
                                  hidden_size=nhid,
                                  num_layers=nlayers,
                                  cell_type='vanilla',
-                                 batch_first=True,
+                                 batch_first=False,
                                  dropout=dropout)
         elif rnn_type == 'subLSTMCuda':
              self.rnn = SubLSTM(input_size=ninp,
                                   hidden_size=nhid,
                                   num_layers=nlayers,
                                   cell_type='cuda',
-                                  batch_first=True,
+                                  batch_first=False,
                                   dropout=dropout)
         else:
             try:
@@ -69,7 +69,6 @@ class RNNModel(nn.Module):
         emb = self.drop(self.encoder(input))
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
-        #print("output shape", output.shape)
         decoded = self.decoder(output.reshape(output.size(0)*output.size(1), output.size(2)))
         decoded = decoded.view(output.size(0), output.size(1), decoded.size(1))
         return decoded, hidden
