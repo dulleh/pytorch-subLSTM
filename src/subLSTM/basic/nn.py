@@ -41,7 +41,15 @@ class SubLSTMFunction(Function):
     def backward(ctx, grad_h, grad_cell):
         grad_h = grad_h.contiguous()
 
+        #f=open("backwardtimes.csv", "a+")
+        #starttime = timer()
+
         outputs = sublstm_cuda.backward(grad_h, grad_cell, *ctx.varies)
+
+        #lapsedtime = timer() - starttime
+        #f.write("{},".format(lapsedtime))
+        #f.close()
+
         # Fix memory leak.
         del ctx.varies
 

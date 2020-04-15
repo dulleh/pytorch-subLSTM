@@ -86,14 +86,9 @@ def batchify(data, bsz):
   data = data.narrow(0, 0, nbatch * bsz)
   # Evenly divide the data across the bsz batches.
   data = data.view(bsz, -1).t().contiguous()
-  if args.cuda:
-    data = data.cuda()
   return data
 
 eval_batch_size = 10
-train_data = batchify(corpus.train, args.batch_size)
-val_data = batchify(corpus.valid, eval_batch_size)
-test_data = batchify(corpus.test, eval_batch_size)
 
 ###############################################################################
 # Build the model
@@ -111,18 +106,6 @@ criterion = nn.CrossEntropyLoss()
 ###############################################################################
 
 def detach_hidden_state(hidden_state):
-  """Wraps hidden states in new Variables, to detach them from their history.
-  if h is None:
-    return None
-  if type(h) == Variable:
-    return Variable(h.data)
-  elif type(h) == list:
-    [ detach_hidden_state(x) for x in h ]
-  elif type(h) == tuple:
-    tuple([ detach_hidden_state(x) for x in h ])
-  else:
-    return tuple(detach_hidden_state(v) for v in h)
-  """
   if isinstance(hidden_state, torch.Tensor):
     return hidden_state.detach()
   elif isinstance(hidden_state, list):
@@ -144,8 +127,8 @@ def detach_hidden_state(hidden_state):
 
 def get_batch(source, i):
   seq_len = min(args.bptt, source.size(0) - 1 - i)
-  data = Variable(source[i:i+seq_len])
-  target = Variable(source[i+1:i+1+seq_len].view(-1))
+  data = source[i:i+seq_len]
+  target = source[i+1:i+1+seq_len].view(-1)
 
   #print("input shape: ", data.shape)
 
@@ -156,7 +139,7 @@ def evaluate(data_source):
   # Turn on evaluation mode which disables dropout.
   model.eval()
   with torch.no_grad():
-      total_loss = 0
+      total_loss = torch.zeros(1)
       ntokens = len(corpus.dictionary)
       #hidden = model.init_hidden(eval_batch_size)
       hidden = None
@@ -164,13 +147,13 @@ def evaluate(data_source):
         data, targets = get_batch(data_source, i)
 
         data = data.t().contiguous()
-        targets = targets.t().contiguous()
+        #targets = targets.t().contiguous()
 
         output, hidden = model(data, hidden)
 
         total_loss += data.size(1) * criterion(output.transpose(0,1).reshape(-1, ntokens), targets).data
         hidden = detach_hidden_state(hidden)
-      return total_loss.item() / len(data_source)
+      return total_loss.data[0] / len(data_source)
 
 if args.optim == 'adam':
   optimizer = optim.Adam(model.parameters(), lr=args.lr, eps=1e-9, betas=[0.9, 0.98]) # 0.0001
@@ -188,13 +171,19 @@ elif args.optim == 'adadelta':
   optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
 def train():
+  if args.cuda:
+    corpus.train = corpus.train.cuda()
+  train_data = batchify(corpus.train, args.batch_size)
   # Turn on training mode which enables dropout.
   model.train(True)
-  total_loss = 0.0
+  total_loss = torch.zeros(1)
+  forward_time = 0
+  backward_time = 0
   start_time = time.time()
   ntokens = len(corpus.dictionary)
   #hidden = model.init_hidden(args.batch_size)
   hidden = None
+
   for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
     data, targets = get_batch(train_data, i)
     optimizer.zero_grad()
@@ -203,21 +192,25 @@ def train():
     hidden = detach_hidden_state(hidden)
 
     data = data.t().contiguous()
-    #targets = targets.t().contiguous()
 
     # forward
+    forwardstart = time.time()
     output, hidden = model(data, hidden)
+    forward_time += time.time() - forwardstart
 
     #print("output shape ", output.shape, " targets shape ", targets.shape)
     loss = criterion(output.transpose(0,1).reshape(-1, ntokens), targets)
+
+    backwardstart = time.time()
     loss.backward()
+    backward_time += time.time() - backwardstart
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
     nn.utils.clip_grad_norm_(model.parameters(), args.clip)
     optimizer.step()
 
-    total_loss += loss.item()
-
+    total_loss += loss.data
+    """
     if batch % args.log_interval == 0 and batch > 0:
       cur_loss = total_loss / args.log_interval
       elapsed = time.time() - start_time
@@ -227,6 +220,8 @@ def train():
         elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
       total_loss = 0.0
       start_time = time.time()
+    """
+  print("forward time: ", forward_time, " backward time: ", backward_time)
 
 # Loop over epochs.
 lr = args.lr
@@ -234,6 +229,10 @@ best_val_loss = None
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
+  if args.cuda:
+      corpus.valid = corpus.valid.cuda()
+  val_data = batchify(corpus.valid, eval_batch_size)
+
   for epoch in range(1, args.epochs+1):
     epoch_start_time = time.time()
     train()
@@ -260,6 +259,9 @@ with open(args.save, 'rb') as f:
   model = torch.load(f)
 
 # Run on test data.
+if args.cuda:
+    corpus.test = corpus.test.cuda()
+test_data = batchify(corpus.test, eval_batch_size)
 test_loss = evaluate(test_data)
 print('=' * 89)
 print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(

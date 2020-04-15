@@ -8,6 +8,7 @@
 #include <cassert>
 #include <fstream>
 #include <cmath>
+//#include <chrono>
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -79,7 +80,8 @@ std::vector<torch::Tensor> backward_sublstm(
   CHECK_INPUT(weights);
   CHECK_INPUT(old_cell);
 // batch-size=4, nhid=450,
-/**std::cout << "dE/dh" << grad_h.sizes() << std::endl; // 4,350
+/**
+std::cout << "dE/dh" << grad_h.sizes() << std::endl; // 4,350
 std::cout << "grad_cell" << grad_cell.sizes() << std::endl; // 4,350
 std::cout << "new_cell" << new_cell.sizes() << std::endl; // 4,350
 std::cout << "input_gate" << input_gate.sizes() << std::endl;// 4,350
@@ -91,8 +93,9 @@ std::cout << "gate_weights" << gate_weights.sizes() << std::endl; // 4,4, 350
 std::cout << "weights" << weights.sizes() << std::endl; // 1400, 352
 std::cout << "old_cell" << old_cell.sizes() << std::endl; // 4, 350
 **/
-
   auto output = backward_cuda(grad_h, grad_cell, new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gate_weights, weights, old_cell);
+
+
  return output;
 /**
   torch::Tensor d_new_cell = (grad_h * d_sigmoid(new_cell)) + (grad_cell);

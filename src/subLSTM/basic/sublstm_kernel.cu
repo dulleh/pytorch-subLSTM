@@ -166,14 +166,18 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
     torch::Tensor old_cell) {
-    const auto batch_size = grad_h.size(0);
-    const auto state_size = grad_h.size(1);
+
+  //std::ofstream outfile("backwardtimes1.csv", std::ios_base::app);
+  //auto start = std::chrono::high_resolution_clock::now();
+
+  const auto batch_size = grad_h.size(0);
+  const auto state_size = grad_h.size(1);
 
 	// auto d_new_cell  -- Don't need this as it is not returned, and used only within the kernel
 	auto d_old_cell = torch::zeros_like(old_cell);
 	auto d_gates = torch::zeros({batch_size, 4*state_size}, weights.options());
 
-	const int threads = 1024;
+	const int threads = 512;
 	const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 
     AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
@@ -192,6 +196,12 @@ std::vector<torch::Tensor> backward_cuda(
 
 	//std::cout << "cu: d_gates[0][12]" << d_gates[1][1] << std::endl;
 	//std::cout << "cu: d_old_cell[1][300]" << d_old_cell[1][300] << std::endl;
+
+
+  //auto end = std::chrono::high_resolution_clock::now();
+  //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  //outfile << duration.count() / std::pow(10, 9) << ",";
+
 
 	torch::Tensor d_weights = d_gates.t().mm(X);
 
