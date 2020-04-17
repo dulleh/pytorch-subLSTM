@@ -146,9 +146,6 @@ def evaluate(data_source):
       for i in range(0, data_source.size(0) - 1, args.bptt):
         data, targets = get_batch(data_source, i)
 
-        #data = data.t().contiguous()
-        #targets = targets.t().contiguous()
-
         output, hidden = model(data, hidden)
 
         total_loss += data.size(0) * criterion(output.reshape(-1, ntokens), targets).data
@@ -181,7 +178,7 @@ def train():
   ntokens = len(corpus.dictionary)
   #hidden = model.init_hidden(args.batch_size)
   hidden = None
-
+  #with torch.autograd.profiler.profile(enabled=False, use_cuda=True) as prof:
   for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
     data, targets = get_batch(train_data, i)
     optimizer.zero_grad()
@@ -189,14 +186,14 @@ def train():
     # If we didn't, the model would try backpropagating all the way to start of the dataset.
     hidden = detach_hidden_state(hidden)
 
-    #data = data.t().contiguous()
-
     # forward
+    #with torch.autograd.profiler.record_function("label-FORWARD"):
     output, hidden = model(data, hidden)
 
     #print("output shape ", output.shape, " targets shape ", targets.shape)
     loss = criterion(output.reshape(-1, ntokens), targets)
 
+    #with torch.autograd.profiler.record_function("label-BACKWARD"):
     loss.backward()
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
@@ -204,7 +201,7 @@ def train():
     optimizer.step()
 
     total_loss += loss.data
-
+    """
     if batch % args.log_interval == 0 and batch > 0:
       cur_loss = total_loss.data[0] / args.log_interval
       elapsed = time.time() - start_time
@@ -214,6 +211,9 @@ def train():
         elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
       total_loss = torch.zeros(1).cuda()
       start_time = time.time()
+      """
+  #print(prof.key_averages().table(sort_by="cuda_time_total"))
+  #print(prof.total_average())
 
 
 # Loop over epochs.

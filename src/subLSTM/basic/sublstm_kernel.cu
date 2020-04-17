@@ -14,13 +14,13 @@ namespace {
 
 	template <typename scalar_t>
 	__device__ __forceinline__ scalar_t sigmoid(scalar_t z) {
-	  return 1.0 / (1.0 + exp(-z));
+	  return 1.0f / (1.0f + exp(-z));
 	}
 
 	template <typename scalar_t>
 	__device__ __forceinline__ scalar_t d_sigmoid(scalar_t z) {
 	  const auto s = sigmoid(z);
-	  return (1.0 - s) * s;
+	  return (1.0f - s) * s;
 	}
 
 	template <typename scalar_t>
@@ -86,6 +86,8 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_h,
     torch::Tensor old_cell)
 {
+	auto options = weights.options();
+
   auto X = torch::cat({old_h, input}, /*dim=*/1);
   auto gate_weights = torch::addmm(bias, X, weights.transpose(0, 1));
   //std::cout << "X: " << X << std::endl;
@@ -101,12 +103,12 @@ std::vector<torch::Tensor> forward_cuda(
 //  std::cout << "state_size: " << state_size << std::endl;
 
 	auto gates = gate_weights.view({batch_size, 4, state_size});
-  auto new_h = torch::zeros_like(old_cell);
-  auto new_cell = torch::zeros_like(old_cell);
-  auto input_gate = torch::zeros_like(old_cell);
-  auto output_gate = torch::zeros_like(old_cell);
-  auto forget_gate = torch::zeros_like(old_cell);
-  auto candidate_cell = torch::zeros_like(old_cell);
+  auto new_h = torch::empty_like(old_cell);
+  auto new_cell = torch::empty_like(old_cell);
+  auto input_gate = torch::empty_like(old_cell);
+  auto output_gate = torch::empty_like(old_cell);
+  auto forget_gate = torch::empty_like(old_cell);
+  auto candidate_cell = torch::empty_like(old_cell);
 
   /**
     * As for the kernel launch itself, we are here specifying that each CUDA block will have 1024 threads, and that the
@@ -115,7 +117,7 @@ std::vector<torch::Tensor> forward_cuda(
     * 4 x 2 = 8 blocks with each 1024 threads.=
     * Source: https://pytorch.org/tutorials/advanced/cpp_extension.html#writing-a-mixed-c-cuda-extension
     **/
-  const int threads = 512;
+  const int threads = 1024;
   const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 
   AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "forward_cuda", ([&] {
@@ -149,18 +151,19 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
     torch::Tensor old_cell) {
-
-  //std::ofstream outfile("backwardtimes1.csv", std::ios_base::app);
-  //auto start = std::chrono::high_resolution_clock::now();
+	// Store no gradients
+	torch::NoGradGuard no_grad;
+	torch::Device device(torch::kCUDA, 0);
+	auto options = grad_h.options().requires_grad(false);
 
   const auto batch_size = grad_h.size(0);
   const auto state_size = grad_h.size(1);
 
 	// auto d_new_cell  -- Don't need this as it is not returned, and used only within the kernel
-	auto d_old_cell = torch::zeros_like(old_cell);
-	auto d_gates = torch::zeros({batch_size, 4*state_size}, weights.options());
+	auto d_old_cell = torch::empty_like(old_cell);
+	auto d_gates = torch::empty({batch_size, 4*state_size}, options);
 
-	const int threads = 512;
+	const int threads = 1024;
 	const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 
     AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
@@ -176,23 +179,32 @@ std::vector<torch::Tensor> backward_cuda(
 		d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 		d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>());
     }));
+/**
+	const auto leftTop = torch::cat({d_gates.t(), torch::zeros({d_gates.size(1), d_gates.size(1)}, options)}, 1);
+	const auto leftBot = torch::cat({torch::zeros({d_gates.size(0), d_gates.size(0)}, options), d_gates}, 1);
+	const auto left = torch::cat({leftTop, leftBot}, 0);
 
-	//std::cout << "cu: d_gates[0][12]" << d_gates[1][1] << std::endl;
-	//std::cout << "cu: d_old_cell[1][300]" << d_old_cell[1][300] << std::endl;
+	const auto rightTop = torch::cat({X, torch::zeros({X.size(0), weights.size(1)}, options}, 1);
+	const auto rightBot = torch::cat({torch::zeros({weights.size(0), X.size(1)}, options), weights}, 1);
+	const auto right = torch::cat({rightTop, rightBot}, 0);
 
 
-  //auto end = std::chrono::high_resolution_clock::now();
-  //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-  //outfile << duration.count() / std::pow(10, 9) << ",";
+	const auto dW0_0dX = left.mm(right);
 
+	const auto dW0 = dW0_0dX.slice(0, 0, d_gates.size(1));
+  const auto _0dX = dW0_0dX.slice(0, d_gates.size(1));
+	torch::Tensor d_weights = dW0.slice(1, 0, X.size(1));
+	torch::Tensor d_X = _0dX.slice(1, X.size(1));
+
+**/
 
 	torch::Tensor d_weights = d_gates.t().mm(X);
+	torch::Tensor d_X = d_gates.mm(weights);
 
 	// sum across rows i.e. sum of columns,
 	// keepdim=true means we're getting a result that has 1 row, columns same as before
-	torch::Tensor d_bias = d_gates.sum(0, true); // not entirely sure why we're summing but I can see that the resulting shape is correct
+	torch::Tensor d_bias = d_gates.sum(0, true); // sum because bias is a vector that gets broadcast on the forward pass
 
-	torch::Tensor d_X = d_gates.mm(weights);
 	torch::Tensor d_old_h = d_X.slice(1, 0, state_size); // first state_size columns
 	torch::Tensor d_input = d_X.slice(1, state_size); // from column [state_size + 1] to the end
 
