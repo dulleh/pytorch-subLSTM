@@ -4,20 +4,15 @@
   */
 //Includes ATen (tensor library), pybind11, and headers to manage the interactions between the two.
 #include <torch/extension.h>
+#include <torch/script.h>
 #include <iostream>
 #include <cassert>
 #include <fstream>
 #include <cmath>
-//#include <chrono>
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
-
-torch::Tensor d_sigmoid(torch::Tensor z) {
-  auto s = torch::sigmoid(z);
-  return (1 - s) * s;
-}
 
 std::vector<torch::Tensor> forward_cuda(
     torch::Tensor input,
@@ -140,6 +135,9 @@ std::cout << "old_cell" << old_cell.sizes() << std::endl; // 4, 350
 **/
 }
 
+static auto registry =
+  torch::RegisterOperators("sublstm::forward", &forward)
+        .op("sublstm::backward", &backward_sublstm);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &forward, "forward pass (cuda)");

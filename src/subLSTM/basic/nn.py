@@ -12,28 +12,22 @@ from torch.nn.modules.rnn import RNNCellBase
 from torch.autograd import Function
 from .functional import sublstm, fsublstm
 
-import sublstm_cuda
+path_to_sublstm_cuda_so = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'sublstm_cuda.so'))
+torch.ops.load_library(path_to_sublstm_cuda_so)
 
 ### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
-        #f=open("functionforwardtime.csv", "a+")
-        #starttime = timer()
-
-        outputs = sublstm_cuda.forward(input,
+        stacked_outputs, X, gates = torch.ops.sublstm.forward(input,
                                       weights,
                                       bias,
                                       old_h,
                                       old_cell)
-        new_h, new_cell = outputs[:2]
 
-        ctx.varies = outputs[1:] + [weights] + [old_cell]
-
-        #lapsedtime = timer() - starttime
-        #f.write("{},".format(lapsedtime))
-        #f.close()
+        new_h, new_cell, input_gate, output_gate, forget_gate, candidate_cell = stacked_outputs.unbind()
+        ctx.varies = [new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gates, weights, old_cell]
 
         return new_h, new_cell
 
@@ -41,19 +35,13 @@ class SubLSTMFunction(Function):
     def backward(ctx, grad_h, grad_cell):
         grad_h = grad_h.contiguous()
 
-        #f=open("backwardtimes.csv", "a+")
-        #starttime = timer()
-
-        outputs = sublstm_cuda.backward(grad_h, grad_cell, *ctx.varies)
-
-        #lapsedtime = timer() - starttime
-        #f.write("{},".format(lapsedtime))
-        #f.close()
+        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, *ctx.varies)
 
         # Fix memory leak.
         del ctx.varies
 
         d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
+
         return d_input, d_weights, d_bias, d_old_h, d_old_cell
 
 
@@ -61,14 +49,19 @@ class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
         super(SubLSTMCudaCell, self).__init__()
         self.input_size = input_size
+        self.state_size = state_size
 
-        # do this to have the same initialisation as non-cuda sublstm (for testing)
+
         gate_size = 4 * state_size
         input_layer = nn.Linear(input_size, gate_size, bias=bias)
         recurrent_layer = nn.Linear(state_size, gate_size, bias=False)
+
+        # do this to have the same initialisation as non-cuda sublstm (for testing correctness)
         # ORDER is important!!
+        """
         input_layer.reset_parameters()
         recurrent_layer.reset_parameters()
+        """
         input_layer.reset_parameters()
         recurrent_layer.reset_parameters()
 
@@ -77,7 +70,6 @@ class SubLSTMCudaCell(nn.Module):
         recurrent_weights = recurrent_layer.weight.data.cuda()
         weightz = torch.cat((recurrent_weights, input_weights), 1)
 
-        self.state_size = state_size
         self.weights = nn.Parameter(weightz)
         self.bias = nn.Parameter(input_bias) if bias else None
 
@@ -280,7 +272,6 @@ class SubLSTM(nn.Module):
 
         for time, l in product(range(timesteps), range(self.num_layers)):
             layer = all_layers[l]
-
 
             self.flatten_parameters()
 

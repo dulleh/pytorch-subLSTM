@@ -127,6 +127,6 @@ setup(
     # $ setup.py publish support.
     cmdclass={
         'upload': UploadCommand,
-        'build_ext': BuildExtension
+        'build_ext': BuildExtension.with_options(no_python_abi_suffix=True)
     },
 )
