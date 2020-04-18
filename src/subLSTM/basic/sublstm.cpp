@@ -3,6 +3,8 @@
   * and taking guidance from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm_cuda.cpp
   */
 //Includes ATen (tensor library), pybind11, and headers to manage the interactions between the two.
+#include <torch/all.h>
+#include <torch/python.h>
 #include <torch/extension.h>
 #include <torch/script.h>
 #include <iostream>
@@ -21,7 +23,7 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_h,
     torch::Tensor old_cell);
 
-std::vector<torch::Tensor> forward(
+std::vector<torch::Tensor> forward_sublstm(
     torch::Tensor input,
     torch::Tensor weights,
     torch::Tensor bias,
@@ -135,11 +137,73 @@ std::cout << "old_cell" << old_cell.sizes() << std::endl; // 4, 350
 **/
 }
 
+class SubLSTMFunction: public torch::autograd::Function<SubLSTMFunction> {
+ public:
+  static torch::autograd::tensor_list forward(
+      torch::autograd::AutogradContext* ctx,
+      torch::Tensor input,
+      torch::Tensor weights,
+      torch::Tensor bias,
+      torch::Tensor old_h,
+      torch::Tensor old_cell) {
+    auto outputs = forward_sublstm(input, weights, bias, old_h, old_cell);
+
+    auto stacked_outputs = outputs[0];
+    auto X = outputs[1];
+    auto gates = outputs[2];
+
+    auto output_list = stacked_outputs.unbind();
+    auto new_h = output_list[0];
+    auto new_cell = output_list[1];
+    auto input_gate = output_list[2];
+    auto output_gate = output_list[3];
+    auto forget_gate = output_list[4];
+    auto candidate_cell = output_list[5];
+
+    ctx->save_for_backward({new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gates, weights, old_cell});
+
+    return {new_h, new_cell};
+  }
+
+  static torch::autograd::tensor_list backward(
+      torch::autograd::AutogradContext* ctx,
+      torch::autograd::tensor_list grads)  {
+        torch::Tensor grad_h    = grads[0];
+        torch::Tensor grad_cell = grads[1];
+        auto saved_vars = ctx->get_saved_variables();
+
+        auto outputs = backward_sublstm(
+          grad_h, grad_cell, saved_vars[0], saved_vars[1],
+          saved_vars[2], saved_vars[3], saved_vars[4], saved_vars[5],
+          saved_vars[6],  saved_vars[7],  saved_vars[8] );
+
+        auto d_old_h = outputs[0];
+        auto d_input = outputs[1];
+        auto d_weights = outputs[2];
+        auto d_bias = outputs[3];
+        auto d_old_cell = outputs[4];
+        auto d_gates = outputs[5];
+
+        return {d_input, d_weights, d_bias, d_old_h, d_old_cell};
+  }
+};
+
+torch::autograd::tensor_list sublstm_apply(
+//  const torch::Tensor& input
+    torch::Tensor input,
+    torch::Tensor weights,
+    torch::Tensor bias,
+    torch::Tensor old_h,
+    torch::Tensor old_cell ) {
+  return SubLSTMFunction::apply(input, weights, bias, old_h, old_cell);
+}
+
 static auto registry =
-  torch::RegisterOperators("sublstm::forward", &forward)
-        .op("sublstm::backward", &backward_sublstm);
+  torch::RegisterOperators("sublstm::forward", &forward_sublstm)
+        .op("sublstm::backward", &backward_sublstm)
+        .op("sublstm::apply", &sublstm_apply);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &forward, "forward pass (cuda)");
+  m.def("forward", &forward_sublstm, "forward pass (cuda)");
   m.def("backward", &backward_sublstm, "backward pass (cuda)");
 }

@@ -5,12 +5,16 @@ from timeit import default_timer as timer
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+from torch.nn import Parameter
 from torch.nn.modules.activation import Sigmoid
 from torch.nn.modules.rnn import RNNCellBase
 # from torch.nn.modules.rnn import PackedSequence
 # from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as pad
 from torch.autograd import Function
 from .functional import sublstm, fsublstm
+from collections import namedtuple
+from typing import List, Tuple, Optional
 
 path_to_sublstm_cuda_so = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'sublstm_cuda.so'))
 torch.ops.load_library(path_to_sublstm_cuda_so)
@@ -51,7 +55,6 @@ class SubLSTMCudaCell(nn.Module):
         self.input_size = input_size
         self.state_size = state_size
 
-
         gate_size = 4 * state_size
         input_layer = nn.Linear(input_size, gate_size, bias=bias)
         recurrent_layer = nn.Linear(state_size, gate_size, bias=False)
@@ -86,8 +89,11 @@ class SubLSTMCudaCell(nn.Module):
             except AttributeError:
                 pass
 
-    def forward(self, input, state):
-        return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
+
+    def forward(self,input: Tensor, state: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
+        #return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
+        new_h, new_cell = torch.ops.sublstm.apply(input, self.weights, self.bias, *state)
+        return new_h, new_cell
 
 
 class SubLSTMCell(nn.Module):
@@ -207,9 +213,18 @@ class SubLSTM(nn.Module):
             layer_in_size = input_size if layer_num == 0 else hidden_size
             layer_out_size = hidden_size
 
-            layer = layer_type(layer_in_size, layer_out_size, bias)
+            #layer = layer_type(layer_in_size, layer_out_size, bias)
 
-            self.add_module('layer_{}'.format(layer_num + 1), layer)
+            #INPUT = torch.rand(4, layer_in_size).cuda() if not batch_first else torch.rand(layer_in_size, 4).cuda()
+            #OLD_H = torch.rand(4, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, 4).cuda()
+            #OLD_CELL = torch.rand(4, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, 4).cuda()
+            #STATE = (OLD_H, OLD_CELL)
+            #traced_layer = torch.jit.trace(layer, (INPUT,STATE))
+
+            traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias))
+
+            self.add_module('layer_{}'.format(layer_num + 1), traced_layer)
+            #self.add_module('layer_{}'.format(layer_num + 1), layer)
 
         if dropout > 0:
             self.dropout = nn.Dropout(dropout)

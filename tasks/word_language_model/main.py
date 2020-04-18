@@ -238,7 +238,11 @@ try:
     # Save the model if the validation loss is the best we've seen so far.
     if not best_val_loss or val_loss < best_val_loss:
       with open(args.save, 'wb') as f:
-        torch.save(model, f)
+        if args.model == 'subLSTMCuda':
+            print("Cannot yet save a CUDA model."
+            "Must make subLSTM be entirely traced")
+        else:
+            torch.save(model, f)
       best_val_loss = val_loss
     else:
       # Anneal the learning rate if no improvement has been seen in the validation dataset.
