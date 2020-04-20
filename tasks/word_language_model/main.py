@@ -95,7 +95,14 @@ eval_batch_size = 10
 ###############################################################################
 
 ntokens = len(corpus.dictionary)
-model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied)
+model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, args.batch_size)
+if args.model == 'subLSTMCuda':
+    """
+    with torch.jit.optimized_execution(True):
+        torch.backends.cudnn.benchmark = True
+        model = torch.jit.script(model)
+    print(model.rnn.code)
+    """
 if args.cuda:
   model.cuda()
 
@@ -181,6 +188,7 @@ def train():
   #with torch.autograd.profiler.profile(enabled=False, use_cuda=True) as prof:
   for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
     data, targets = get_batch(train_data, i)
+
     optimizer.zero_grad()
     # Starting each batch, we detach the hidden state from how it was previously produced.
     # If we didn't, the model would try backpropagating all the way to start of the dataset.
@@ -237,11 +245,12 @@ try:
     print('-' * 89)
     # Save the model if the validation loss is the best we've seen so far.
     if not best_val_loss or val_loss < best_val_loss:
-      with open(args.save, 'wb') as f:
-        if args.model == 'subLSTMCuda':
-            print("Cannot yet save a CUDA model."
-            "Must make subLSTM be entirely traced")
-        else:
+      if args.model == 'subLSTMCuda':
+          #model.save(args.save)
+          with open(args.save, 'wb') as f:
+            torch.save(model, f)
+      else:
+          with open(args.save, 'wb') as f:
             torch.save(model, f)
       best_val_loss = val_loss
     else:
@@ -252,8 +261,13 @@ except KeyboardInterrupt:
   print('Exiting from training early')
 
 # Load the best saved model.
-with open(args.save, 'rb') as f:
-  model = torch.load(f)
+if args.model == 'subLSTMCuda':
+    #torch.jit.load(args.save)
+    with open(args.save, 'rb') as f:
+      model = torch.load(f)
+else:
+    with open(args.save, 'rb') as f:
+      model = torch.load(f)
 
 # Run on test data.
 if args.cuda:

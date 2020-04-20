@@ -23,31 +23,46 @@ torch.ops.load_library(path_to_sublstm_cuda_so)
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
     @staticmethod
-    def forward(ctx, input, weights, bias, old_h, old_cell):
-        stacked_outputs, X, gates = torch.ops.sublstm.forward(input,
-                                      weights,
-                                      bias,
-                                      old_h,
-                                      old_cell)
+    def forward(ctx, input, weights, bias, old_h, old_cell, non_vars):
+        X = non_vars[0]
+        gate_weights = non_vars[1]
 
-        new_h, new_cell, input_gate, output_gate, forget_gate, candidate_cell = stacked_outputs.unbind()
-        ctx.varies = [new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gates, weights, old_cell]
+        new_h, new_cell, input_gate, output_gate, forget_gate, candidate_cell = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell)
+
+        ctx.varies = [X, gate_weights, old_h, old_cell, forget_gate, candidate_cell, weights, new_cell, input_gate, output_gate]
 
         return new_h, new_cell
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
-        grad_h = grad_h.contiguous()
+        #grad_h = grad_h.contiguous()
+        saved_vars = ctx.other_varies
 
-        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, *ctx.varies)
+        saved_data = ctx.varies
+        X = saved_data[0]
+        gate_weights = saved_data[1]
+        old_h = saved_data[2]
+        old_cell = saved_data[3]
+        forget_gate = saved_data[4]
+        candidate_cell = saved_data[5]
+        weights = saved_data[6]
+        new_cell = saved_vars[7]
+        input_gate = saved_vars[8]
+        output_gate = saved_vars[9]
+
+        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gate_weights, weights, old_cell)
 
         # Fix memory leak.
         del ctx.varies
 
-        d_old_h, d_input, d_weights, d_bias, d_old_cell, d_gates = outputs
+        d_old_h = outputs[0]
+        d_input = outputs[1]
+        d_weights = outputs[2]
+        d_bias = outputs[3]
+        d_old_cell = outputs[4]
+        d_gates = outputs[5]
 
-        return d_input, d_weights, d_bias, d_old_h, d_old_cell
-
+        return d_input, d_weights, d_bias, d_old_h, d_old_cell, None
 
 class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
@@ -91,9 +106,22 @@ class SubLSTMCudaCell(nn.Module):
 
 
     def forward(self,input: Tensor, state: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
-        #return SubLSTMFunction.apply(input, self.weights, self.bias, *state)
-        new_h, new_cell = torch.ops.sublstm.apply(input, self.weights, self.bias, *state)
-        return new_h, new_cell
+        old_h, old_cell = state
+
+        #Use .detach() because torch.no_grad() is not supported by TorchScript
+        X = torch.cat((old_h.detach(), input.detach()), 1)
+        X = X.detach()
+        gate_weights = torch.addmm(self.bias.detach(), X, self.weights.detach().transpose(0, 1))
+
+        # TorchScript version
+        # still need to pass in all parameters so they can be saved for the backwards pass
+        #new_h, new_cell = torch.ops.sublstm.apply(input, self.weights, self.bias, old_h, old_cell, [X, gate_weights])
+        #return new_h, new_cell
+
+        # If you don't want to use TorchScript, use this:
+        #  It's also useful for debugging the C++ version of subLSTMFunction
+        #  so long as you keep both up to date
+        return SubLSTMFunction.apply(input, self.weights, self.bias, old_h, old_cell, [X, gate_weights])
 
 
 class SubLSTMCell(nn.Module):
@@ -161,11 +189,15 @@ class fixSubLSTMCell(nn.Module):
             self.f_gate
         )
 
+def init_stacked_lstm(num_layers, layer, cell, input_size, hidden_size):
+    layers = [layer(cell, input_size, hidden_size)] + \
+             [layer(cell, hidden_size, hidden_size) for _ in range(num_layers - 1)]
+    return nn.ModuleList(layers)
 
 # noinspection PyShadowingBuiltins,PyPep8Naming
 class SubLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, bias=True,
-                    cell_type='vanilla', batch_first=False, dropout=0.0):
+                    cell_type='vanilla', batch_first=False, dropout=0.0, batch_size=1):
         super().__init__()
 
         #self.times = []
@@ -208,41 +240,43 @@ class SubLSTM(nn.Module):
         else:
             raise Exception('cell_type must one of \'vanilla\', \'fixed_forget\', or \'cuda\'. Recieved: {}'.format(cell_type))
 
+        layers = []
         for layer_num in range(num_layers):
-
             layer_in_size = input_size if layer_num == 0 else hidden_size
             layer_out_size = hidden_size
 
-            #layer = layer_type(layer_in_size, layer_out_size, bias)
-
-            #INPUT = torch.rand(4, layer_in_size).cuda() if not batch_first else torch.rand(layer_in_size, 4).cuda()
-            #OLD_H = torch.rand(4, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, 4).cuda()
-            #OLD_CELL = torch.rand(4, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, 4).cuda()
-            #STATE = (OLD_H, OLD_CELL)
-            #traced_layer = torch.jit.trace(layer, (INPUT,STATE))
-
-            traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias))
-
-            self.add_module('layer_{}'.format(layer_num + 1), traced_layer)
+            layer = layer_type(layer_in_size, layer_out_size, bias)
+            layers.append(layer)
             #self.add_module('layer_{}'.format(layer_num + 1), layer)
 
-        if dropout > 0:
-            self.dropout = nn.Dropout(dropout)
+            """
+            Tracing. But tracing doesn't work with a custom Function defined in Python.
 
+            INPUT = torch.rand(batch_size, layer_in_size).cuda() if not batch_first else torch.rand(layer_in_size, batch_size).cuda()
+            OLD_H = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
+            OLD_CELL = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
+            STATE = (OLD_H, OLD_CELL)
+            traced_layer = torch.jit.trace(layer, (INPUT,STATE))
+            #layers.append(traced_layer)
+            """
+
+            #Scripting.
+            #with torch.jit.optimized_execution(True):
+            #    torch.backends.cudnn.benchmark = True
+            #    traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias)).cuda()
+            #print(traced_layer.code)
+            #layers.append(traced_layer)
+
+        self.all_layers = nn.ModuleList(layers)
+
+        if dropout > 0:
+            self.use_dropout = True
+            self.dropout = nn.Dropout(dropout)
         else:
-            self.dropout = False
+            self.use_dropout = False
 
         self.flatten_parameters()
         self.reset_parameters()
-
-    @property
-    def all_weights(self):
-        return [[getattr(self, name) for name in param_names]
-            for param_names in self._all_params]
-
-    @property
-    def all_layers(self):
-        return [getattr(self, 'layer_{}'.format(layer + 1)) for layer in range(self.num_layers)]
 
     def reset_parameters(self):
         for module in self.children():
@@ -256,8 +290,10 @@ class SubLSTM(nn.Module):
         #    module.flattenParameters()
         pass
 
-    #@staticmethod
-    def forward(self, input, hx=None):
+    def forward(self,
+            input: Tensor,
+            state: Optional[List[Tuple[Tensor, Tensor]]]
+            ) -> Tuple[Tensor, List[Tuple[Tensor, Tensor]]]:
         # TODO: Check docs later and add the packed sequence and seq2seq models
         # is_packed = isinstance(input, PackedSequence)
         #
@@ -270,46 +306,49 @@ class SubLSTM(nn.Module):
 
         max_batch_size = input.size(0) if self.batch_first else input.size(1)
 
-        if hx is None:
-            hx = []
+        hx: List[Tuple[Tensor, Tensor]] = []
+        if state is None:
             for l in range(self.num_layers):
                 # use input.new_zeros so dtype and device are the same as the input's
-                hidden = input.new_zeros(
-                    (max_batch_size, self.hidden_size), requires_grad=False)
+                #hidden = input.new_zeros((max_batch_size, self.hidden_size), requires_grad=False)
+                hidden = input.new_zeros((max_batch_size, self.hidden_size)).detach()
                 hx.append((hidden, hidden))
+        else:
+            hx = state
 
         if self.batch_first:
             input = input.transpose(0, 1).contiguous()
 
         timesteps = input.size(0)
         outputs = [input[i] for i in range(timesteps)]
-        all_layers = self.all_layers
 
-        for time, l in product(range(timesteps), range(self.num_layers)):
-            layer = all_layers[l]
+        #for time, l in product(range(timesteps), range(self.num_layers)):
+        for time in range(timesteps):
+            for l, layer in enumerate(self.all_layers):
+                #layer = self.all_layers[l]
 
-            self.flatten_parameters()
+                self.flatten_parameters()
 
-            #starttime = timer()
+                #starttime = timer()
 
-            #print("outputs[time].shape ", outputs[time].shape)
-            #print("len(hx[l]) ", len(hx[l]))
-            out, c = layer(outputs[time], hx[l])
+                #print("outputs[time].shape ", outputs[time].shape)
+                #print("len(hx[l]) ", len(hx[l]))
+                out, c = layer(outputs[time], hx[l])
 
-            #lapsedtime = timer() - starttime
-            #self.times.append(lapsedtime)
+                #lapsedtime = timer() - starttime
+                #self.times.append(lapsedtime)
 
 
-            #self.totalforwardtime += lapsedtime
+                #self.totalforwardtime += lapsedtime
 
-            #self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
-            #self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)
+                #self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
+                #self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)
 
-            if self.dropout:
-                out = self.dropout(out)
+                if self.use_dropout:
+                    out = self.dropout(out)
 
-            hx[l] = (out, c)
-            outputs[time] = out
+                hx[l] = (out, c)
+                outputs[time] = out
 
         out = torch.stack(outputs)
 

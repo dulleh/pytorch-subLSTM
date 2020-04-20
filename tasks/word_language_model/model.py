@@ -1,7 +1,11 @@
 import sys
 import os
+import torch
 import torch.nn as nn
+from torch import Tensor
 from torch.autograd import Variable
+from collections import namedtuple
+from typing import List, Tuple, Optional
 
 sys.path.insert(0, '../../src/')
 sys.path.insert(0, '../')
@@ -12,7 +16,7 @@ from subLSTM.basic.nn import SubLSTM
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False):
+    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False, batch_size=1):
         super(RNNModel, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
@@ -25,14 +29,28 @@ class RNNModel(nn.Module):
                                  num_layers=nlayers,
                                  cell_type='vanilla',
                                  batch_first=False,
-                                 dropout=dropout)
+                                 dropout=dropout,
+                                 batch_size=batch_size)
         elif rnn_type == 'subLSTMCuda':
-             self.rnn = SubLSTM(input_size=ninp,
+            self.rnn = SubLSTM(input_size=ninp,
                                   hidden_size=nhid,
                                   num_layers=nlayers,
                                   cell_type='cuda',
                                   batch_first=False,
-                                  dropout=dropout)
+                                  dropout=dropout,
+                                  batch_size=batch_size)
+            """
+            with torch.jit.optimized_execution(True):
+                torch.backends.cudnn.benchmark = True
+                self.rnn = torch.jit.script(SubLSTM(input_size=ninp,
+                                      hidden_size=nhid,
+                                      num_layers=nlayers,
+                                      cell_type='cuda',
+                                      batch_first=False,
+                                      dropout=dropout,
+                                      batch_size=batch_size))
+            print(self.rnn.code)
+            """
         else:
             try:
                 nonlinearity = {'RNN_TANH': 'tanh', 'RNN_RELU': 'relu'}[rnn_type]
@@ -65,13 +83,17 @@ class RNNModel(nn.Module):
         self.decoder.bias.data.fill_(0)
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, input, hidden):
+
+    def forward(self,
+            input: Tensor,
+            hidden: Optional[List[Tuple[Tensor, Tensor]]]
+            ) -> Tuple[Tensor, List[Tuple[Tensor, Tensor]]]:
         emb = self.drop(self.encoder(input))
-        output, hidden = self.rnn(emb, hidden)
+        output, new_hidden = self.rnn(emb, hidden)
         output = self.drop(output)
         decoded = self.decoder(output.reshape(output.size(0)*output.size(1), output.size(2)))
         decoded = decoded.view(output.size(0), output.size(1), decoded.size(1))
-        return decoded, hidden
+        return decoded, new_hidden
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
