@@ -27,12 +27,12 @@ std::vector<torch::Tensor> forward_sublstm(
     torch::Tensor gate_weights,
     torch::Tensor old_h,
     torch::Tensor old_cell) {
-
+/**
   CHECK_INPUT(input);
   CHECK_INPUT(gate_weights);
   CHECK_INPUT(old_h);
   CHECK_INPUT(old_cell);
-
+**/
   return forward_cuda(input, gate_weights, old_h, old_cell);
 }
 
@@ -62,7 +62,7 @@ std::vector<torch::Tensor> backward_sublstm(
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
     torch::Tensor old_cell) {
-  CHECK_INPUT(grad_h);
+/**  CHECK_INPUT(grad_h);
   CHECK_INPUT(grad_cell);
   CHECK_INPUT(new_cell);
   CHECK_INPUT(input_gate);
@@ -73,6 +73,7 @@ std::vector<torch::Tensor> backward_sublstm(
   CHECK_INPUT(gate_weights);
   CHECK_INPUT(weights);
   CHECK_INPUT(old_cell);
+**/
 // batch-size=4, nhid=450,
 /**
 std::cout << "dE/dh" << grad_h.sizes() << std::endl; // 4,350
