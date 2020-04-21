@@ -27,7 +27,9 @@ class SubLSTMFunction(Function):
         X = non_vars[0]
         gate_weights = non_vars[1]
 
-        new_h, new_cell, input_gate, output_gate, forget_gate, candidate_cell = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell)
+        new_h, new_cell, stacked_intermediates = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell)
+
+        input_gate, output_gate, forget_gate, candidate_cell = stacked_intermediates.unbind()
 
         ctx.varies = [X, gate_weights, old_h, old_cell, forget_gate, candidate_cell, weights, new_cell, input_gate, output_gate]
 
@@ -36,7 +38,6 @@ class SubLSTMFunction(Function):
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
         #grad_h = grad_h.contiguous()
-        saved_vars = ctx.other_varies
 
         saved_data = ctx.varies
         X = saved_data[0]
@@ -46,9 +47,9 @@ class SubLSTMFunction(Function):
         forget_gate = saved_data[4]
         candidate_cell = saved_data[5]
         weights = saved_data[6]
-        new_cell = saved_vars[7]
-        input_gate = saved_vars[8]
-        output_gate = saved_vars[9]
+        new_cell = saved_data[7]
+        input_gate = saved_data[8]
+        output_gate = saved_data[9]
 
         outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gate_weights, weights, old_cell)
 
@@ -247,25 +248,25 @@ class SubLSTM(nn.Module):
 
             layer = layer_type(layer_in_size, layer_out_size, bias)
             layers.append(layer)
-            #self.add_module('layer_{}'.format(layer_num + 1), layer)
 
             """
-            Tracing. But tracing doesn't work with a custom Function defined in Python.
+            #Tracing. But tracing doesn't work with a custom Function defined in Python.
 
             INPUT = torch.rand(batch_size, layer_in_size).cuda() if not batch_first else torch.rand(layer_in_size, batch_size).cuda()
             OLD_H = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
             OLD_CELL = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
             STATE = (OLD_H, OLD_CELL)
             traced_layer = torch.jit.trace(layer, (INPUT,STATE))
-            #layers.append(traced_layer)
+            layers.append(traced_layer)
             """
-
+            """
             #Scripting.
-            #with torch.jit.optimized_execution(True):
-            #    torch.backends.cudnn.benchmark = True
-            #    traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias)).cuda()
-            #print(traced_layer.code)
-            #layers.append(traced_layer)
+            with torch.jit.optimized_execution(True):
+                torch.backends.cudnn.benchmark = True
+                traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias)).cuda()
+            print(traced_layer.code)
+            layers.append(traced_layer)
+            """
 
         self.all_layers = nn.ModuleList(layers)
 
@@ -322,24 +323,13 @@ class SubLSTM(nn.Module):
         timesteps = input.size(0)
         outputs = [input[i] for i in range(timesteps)]
 
-        #for time, l in product(range(timesteps), range(self.num_layers)):
         for time in range(timesteps):
             for l, layer in enumerate(self.all_layers):
                 #layer = self.all_layers[l]
 
                 self.flatten_parameters()
 
-                #starttime = timer()
-
-                #print("outputs[time].shape ", outputs[time].shape)
-                #print("len(hx[l]) ", len(hx[l]))
                 out, c = layer(outputs[time], hx[l])
-
-                #lapsedtime = timer() - starttime
-                #self.times.append(lapsedtime)
-
-
-                #self.totalforwardtime += lapsedtime
 
                 #self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
                 #self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)
