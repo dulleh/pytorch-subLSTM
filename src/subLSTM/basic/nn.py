@@ -201,6 +201,8 @@ class SubLSTM(nn.Module):
                     cell_type='vanilla', batch_first=False, dropout=0.0, batch_size=1):
         super().__init__()
 
+        self.streams = None
+        self.num_streams = 0
         #self.times = []
         #self.epochtimes = []
         #self.backwardtimes = []
@@ -293,7 +295,7 @@ class SubLSTM(nn.Module):
 
     def forward(self,
             input: Tensor,
-            state: Optional[List[Tuple[Tensor, Tensor]]]
+            states: Optional[List[Tuple[Tensor, Tensor]]]
             ) -> Tuple[Tensor, List[Tuple[Tensor, Tensor]]]:
         # TODO: Check docs later and add the packed sequence and seq2seq models
         # is_packed = isinstance(input, PackedSequence)
@@ -308,26 +310,28 @@ class SubLSTM(nn.Module):
         max_batch_size = input.size(0) if self.batch_first else input.size(1)
 
         hx: List[Tuple[Tensor, Tensor]] = []
-        if state is None:
+        if states is None:
             for l in range(self.num_layers):
                 # use input.new_zeros so dtype and device are the same as the input's
                 #hidden = input.new_zeros((max_batch_size, self.hidden_size), requires_grad=False)
                 hidden = input.new_zeros((max_batch_size, self.hidden_size)).detach()
                 hx.append((hidden, hidden))
         else:
-            hx = state
+            hx = states
 
         if self.batch_first:
             input = input.transpose(0, 1).contiguous()
 
         timesteps = input.size(0)
+
+        """
         outputs = [input[i] for i in range(timesteps)]
 
         for time in range(timesteps):
             for l, layer in enumerate(self.all_layers):
                 #layer = self.all_layers[l]
 
-                self.flatten_parameters()
+                #self.flatten_parameters()
 
                 out, c = layer(outputs[time], hx[l])
 
@@ -339,6 +343,65 @@ class SubLSTM(nn.Module):
 
                 hx[l] = (out, c)
                 outputs[time] = out
+
+        """
+
+        # update this so that we add streams if we need to
+        if self.streams is None:
+            self.num_streams = min(timesteps, self.num_layers)
+            self.streams = [torch.cuda.Stream() for i in range(self.num_streams)]
+
+        # notice these are indexed oppositely so that the return values
+        # are most efficiently and easily done
+        outputGrid = [[None]*(timesteps) for i in range(self.num_layers)]
+        stateGrid = [[None]*(self.num_layers) for i in range(timesteps)]
+
+        diagStartL, diagStartT = 0, 0
+
+        while True:
+            torch.cuda.synchronize()
+            currentL = diagStartL
+            currentT = diagStartT
+
+            streamIndex = 0
+
+            while currentL < self.num_layers and currentT >= 0:
+                currentStream = self.streams[streamIndex % self.num_streams]
+                with torch.cuda.stream(currentStream):
+
+                    if currentL == 0:
+                        prevOutput = input[currentT]
+                    else:
+                        prevOutput = outputGrid[currentL-1][currentT]
+
+                    if currentT == 0:
+                        prevState = hx[currentL]
+                    else:
+                        prevState = stateGrid[currentT-1][currentL]
+
+                    out, c = self.all_layers[currentL](prevOutput, prevState)
+
+                    if self.use_dropout:
+                        out = self.dropout(out)
+
+                    stateGrid[currentT][currentL] = (out,c)
+                    outputGrid[currentL][currentT] = out
+
+                currentL += 1
+                currentT -= 1
+                streamIndex += 1
+
+            if diagStartT != timesteps - 1: # moving across stage
+                diagStartT += 1
+            elif diagStartL != self.num_layers - 1: # moving up stage
+                diagStartL += 1
+            else: # on the last cell, so don't have any more to do
+                break
+
+        torch.cuda.synchronize()
+
+        hx = stateGrid[timesteps - 1]
+        outputs = outputGrid[self.num_layers - 1]
 
         out = torch.stack(outputs)
 

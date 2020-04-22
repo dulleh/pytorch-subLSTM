@@ -3,6 +3,12 @@
   * Taking cues from  	https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm_cuda_kernel.cu
   */
 #include <torch/all.h>
+
+#include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAGuard.h>
+#include <ATen/cuda/CUDAMultiStreamGuard.h>
+#include <ATen/cuda/CUDAEvent.h>
+
 #include <torch/extension.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -226,6 +232,8 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_h,
     torch::Tensor old_cell)
 {
+	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
 	auto options = gate_weights.options().requires_grad(true);
 
   const auto batch_size = old_cell.size(0);
@@ -270,7 +278,7 @@ std::vector<torch::Tensor> forward_cuda(
   }));
 **/
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "forward_cuda", ([&] {
-		new_forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
+		new_forward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
 			batch_size,
 			state_size,
 			gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
@@ -297,6 +305,8 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
     torch::Tensor old_cell) {
+	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
 	// Store no gradients
 	torch::NoGradGuard no_grad;
 	torch::Device device(torch::kCUDA, 0);
@@ -333,7 +343,7 @@ std::vector<torch::Tensor> backward_cuda(
 	}));
 **/
 	AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
-		new_backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
+		new_backward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
 			batch_size,
 			state_size,
 			grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),

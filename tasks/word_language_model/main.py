@@ -245,6 +245,7 @@ try:
     print('-' * 89)
     # Save the model if the validation loss is the best we've seen so far.
     if not best_val_loss or val_loss < best_val_loss:
+      """
       if args.model == 'subLSTMCuda':
           #model.save(args.save)
           with open(args.save, 'wb') as f:
@@ -252,6 +253,7 @@ try:
       else:
           with open(args.save, 'wb') as f:
             torch.save(model, f)
+      """
       best_val_loss = val_loss
     else:
       # Anneal the learning rate if no improvement has been seen in the validation dataset.
@@ -260,6 +262,7 @@ except KeyboardInterrupt:
   print('-' * 89)
   print('Exiting from training early')
 
+"""
 # Load the best saved model.
 if args.model == 'subLSTMCuda':
     #torch.jit.load(args.save)
@@ -268,6 +271,7 @@ if args.model == 'subLSTMCuda':
 else:
     with open(args.save, 'rb') as f:
       model = torch.load(f)
+"""
 
 # Run on test data.
 if args.cuda:
