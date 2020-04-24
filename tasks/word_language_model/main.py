@@ -209,6 +209,7 @@ def train():
     optimizer.step()
 
     total_loss += loss.data
+
     """
     if batch % args.log_interval == 0 and batch > 0:
       cur_loss = total_loss.data[0] / args.log_interval
@@ -220,7 +221,9 @@ def train():
       total_loss = torch.zeros(1).cuda()
       start_time = time.time()
       """
+  #print("Averages: ")
   #print(prof.key_averages().table(sort_by="cuda_time_total"))
+  #print("Totals: ")
   #print(prof.total_average())
 
 

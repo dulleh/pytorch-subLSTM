@@ -27,11 +27,9 @@ class SubLSTMFunction(Function):
         X = non_vars[0]
         gate_weights = non_vars[1]
 
-        new_h, new_cell, stacked_intermediates = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell)
+        new_h, new_cell, forget_gate = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell)
 
-        input_gate, output_gate, forget_gate, candidate_cell = stacked_intermediates.unbind()
-
-        ctx.varies = [X, gate_weights, old_h, old_cell, forget_gate, candidate_cell, weights, new_cell, input_gate, output_gate]
+        ctx.varies = [X, gate_weights, old_h, old_cell, weights, new_cell, forget_gate]
 
         return new_h, new_cell
 
@@ -44,14 +42,11 @@ class SubLSTMFunction(Function):
         gate_weights = saved_data[1]
         old_h = saved_data[2]
         old_cell = saved_data[3]
-        forget_gate = saved_data[4]
-        candidate_cell = saved_data[5]
-        weights = saved_data[6]
-        new_cell = saved_data[7]
-        input_gate = saved_data[8]
-        output_gate = saved_data[9]
+        weights = saved_data[4]
+        new_cell = saved_data[5]
+        forget_gate = saved_data[6]
 
-        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, input_gate, output_gate, forget_gate, candidate_cell, X, gate_weights, weights, old_cell)
+        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell)
 
         # Fix memory leak.
         del ctx.varies
@@ -61,7 +56,7 @@ class SubLSTMFunction(Function):
         d_weights = outputs[2]
         d_bias = outputs[3]
         d_old_cell = outputs[4]
-        d_gates = outputs[5]
+        #d_gates = outputs[5]
 
         return d_input, d_weights, d_bias, d_old_h, d_old_cell, None
 
@@ -89,7 +84,8 @@ class SubLSTMCudaCell(nn.Module):
         recurrent_weights = recurrent_layer.weight.data.cuda()
         weightz = torch.cat((recurrent_weights, input_weights), 1)
 
-        self.weights = nn.Parameter(weightz)
+        #self.weights = nn.Parameter(weightz)
+        self.weightsT = nn.Parameter(weightz.t().contiguous())
         self.bias = nn.Parameter(input_bias) if bias else None
 
         self.reset_parameters()
@@ -111,8 +107,8 @@ class SubLSTMCudaCell(nn.Module):
 
         #Use .detach() because torch.no_grad() is not supported by TorchScript
         X = torch.cat((old_h.detach(), input.detach()), 1)
-        X = X.detach()
-        gate_weights = torch.addmm(self.bias.detach(), X, self.weights.detach().transpose(0, 1))
+        #gate_weights = torch.addmm(self.bias.detach(), X, self.weights.detach().transpose(0, 1))
+        gate_weights = torch.addmm(self.bias.detach(), X, self.weightsT.detach())
 
         # TorchScript version
         # still need to pass in all parameters so they can be saved for the backwards pass
@@ -122,7 +118,7 @@ class SubLSTMCudaCell(nn.Module):
         # If you don't want to use TorchScript, use this:
         #  It's also useful for debugging the C++ version of subLSTMFunction
         #  so long as you keep both up to date
-        return SubLSTMFunction.apply(input, self.weights, self.bias, old_h, old_cell, [X, gate_weights])
+        return SubLSTMFunction.apply(input, self.weightsT, self.bias, old_h, old_cell, [X, gate_weights])
 
 
 class SubLSTMCell(nn.Module):
@@ -189,11 +185,6 @@ class fixSubLSTMCell(nn.Module):
             self.recurrent_layer,
             self.f_gate
         )
-
-def init_stacked_lstm(num_layers, layer, cell, input_size, hidden_size):
-    layers = [layer(cell, input_size, hidden_size)] + \
-             [layer(cell, hidden_size, hidden_size) for _ in range(num_layers - 1)]
-    return nn.ModuleList(layers)
 
 # noinspection PyShadowingBuiltins,PyPep8Naming
 class SubLSTM(nn.Module):
@@ -349,6 +340,7 @@ class SubLSTM(nn.Module):
         # update this so that we add streams if we need to
         if self.streams is None:
             self.num_streams = min(timesteps, self.num_layers)
+            # always make use of the default stream
             self.streams = [torch.cuda.Stream() for i in range(self.num_streams)]
 
         # notice these are indexed oppositely so that the return values
