@@ -23,11 +23,9 @@ torch.ops.load_library(path_to_sublstm_cuda_so)
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
     @staticmethod
-    def forward(ctx, input, weights, bias, old_h, old_cell, non_vars):
-        X = non_vars[0]
-        gate_weights = non_vars[1]
+    def forward(ctx, input, weights, bias, old_h, old_cell):
 
-        new_h, new_cell, forget_gate = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell, X, weights, bias)
+        new_h, new_cell, forget_gate, gate_weights, X = torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias)
 
         ctx.varies = [X, gate_weights, old_h, old_cell, weights, new_cell, forget_gate]
 
@@ -106,9 +104,9 @@ class SubLSTMCudaCell(nn.Module):
         old_h, old_cell = state
 
         #Use .detach() because torch.no_grad() is not supported by TorchScript
-        X = torch.cat((old_h.detach(), input.detach()), 1)
+        #X = torch.cat((old_h.detach(), input.detach()), 1)
         #gate_weights = torch.addmm(self.bias.detach(), X, self.weights.detach().transpose(0, 1))
-        gate_weights = torch.addmm(self.bias.detach(), X, self.weightsT.detach())
+        #gate_weights = torch.addmm(self.bias.detach(), X, self.weightsT.detach())
 
         # TorchScript version
         # still need to pass in all parameters so they can be saved for the backwards pass
@@ -118,7 +116,7 @@ class SubLSTMCudaCell(nn.Module):
         # If you don't want to use TorchScript, use this:
         #  It's also useful for debugging the C++ version of subLSTMFunction
         #  so long as you keep both up to date
-        return SubLSTMFunction.apply(input, self.weightsT, self.bias, old_h, old_cell, [X, gate_weights])
+        return SubLSTMFunction.apply(input, self.weightsT, self.bias, old_h, old_cell)
 
 
 class SubLSTMCell(nn.Module):

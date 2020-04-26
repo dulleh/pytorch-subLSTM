@@ -305,40 +305,35 @@ __global__ void mmAdd(
 }
 
 std::vector<torch::Tensor> forward_cuda(
-    torch::Tensor input,
-    torch::Tensor gate_weights,
-    torch::Tensor old_h,
-    torch::Tensor old_cell,
-		torch::Tensor X,
-		torch::Tensor weightsT,
-		torch::Tensor bias
-	)
+	torch::Tensor input,
+	torch::Tensor old_h,
+	torch::Tensor old_cell,
+	torch::Tensor weightsT,
+	torch::Tensor bias
+)
 {
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-	auto options = gate_weights.options().requires_grad(false);
+	auto options = weightsT.options().requires_grad(false);
 
   const auto batch_size = old_cell.size(0);
   const auto state_size = old_cell.size(1);
 
-/**
-	auto new_gate_weights = torch::empty({X.size(0), weightsT.size(1)}, options);
+	auto X = torch::cat({old_h, input}, 1);
+
+	auto gate_weights = torch::empty({X.size(0), weightsT.size(1)}, options);
 	int t = 16;
 	dim3 THREADS(t, t);
-  dim3 GRID((new_gate_weights.size(1) + t - 1) / t,
-						(new_gate_weights.size(0) + t - 1) / t);
+  dim3 GRID((gate_weights.size(1) + t - 1) / t,
+						(gate_weights.size(0) + t - 1) / t);
 	AT_DISPATCH_FLOATING_TYPES(X.scalar_type(), "custom_mmadd", ([&] {
 		mmAdd<scalar_t, 16><<<GRID, THREADS, 0, stream>>>(
-			new_gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			X.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			weightsT.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>()
 		);
 	}));
-	**/
-	//std::cout << "new outputs" << new_gate_weights.slice(1, 0, 20) << std::endl;
-	//std::cout << "old outputs" << gate_weights.slice(1, 0, 20) << std::endl;
-
 
 	auto new_h = torch::empty({batch_size, state_size}, options);
   auto new_cell = torch::empty({batch_size, state_size}, options);
@@ -353,7 +348,6 @@ std::vector<torch::Tensor> forward_cuda(
   **/
 
 	const int threads = 256;
-	//const dim3 blocks((state_size + threads - 1) / threads, batch_size);
 	const dim3 blocks((state_size*batch_size + threads - 1) / threads, 1);
 
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "forward_cuda", ([&] {
@@ -368,18 +362,18 @@ std::vector<torch::Tensor> forward_cuda(
 		);
 	}));
 
-	return {new_h, new_cell, forget_gate};
+	return {new_h, new_cell, forget_gate, gate_weights, X};
 }
 
 std::vector<torch::Tensor> backward_cuda(
-    torch::Tensor grad_h,
-    torch::Tensor grad_cell,
-    torch::Tensor new_cell,
-    torch::Tensor forget_gate,
-    torch::Tensor X,
-    torch::Tensor gate_weights, // gate outputs, pre-activation
-    torch::Tensor weights, // actual weights in the gates
-    torch::Tensor old_cell)
+		torch::Tensor grad_h,
+		torch::Tensor grad_cell,
+		torch::Tensor new_cell,
+		torch::Tensor forget_gate,
+		torch::Tensor X,
+		torch::Tensor gate_weights, // gate outputs, pre-activation
+		torch::Tensor weights, // actual weights in the gates
+		torch::Tensor old_cell)
 {
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
