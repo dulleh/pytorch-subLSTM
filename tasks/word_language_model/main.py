@@ -185,7 +185,7 @@ def train():
   ntokens = len(corpus.dictionary)
   #hidden = model.init_hidden(args.batch_size)
   hidden = None
-  #with torch.autograd.profiler.profile(enabled=False, use_cuda=True) as prof:
+  #with torch.autograd.profiler.profile(enabled=True, use_cuda=True) as prof:
   for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
     data, targets = get_batch(train_data, i)
 
@@ -210,6 +210,7 @@ def train():
 
     total_loss += loss.data
 
+    #break
     """
     if batch % args.log_interval == 0 and batch > 0:
       cur_loss = total_loss.data[0] / args.log_interval
@@ -220,12 +221,9 @@ def train():
         elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
       total_loss = torch.zeros(1).cuda()
       start_time = time.time()
-      """
+    """
   #print("Averages: ")
   #print(prof.key_averages().table(sort_by="cuda_time_total"))
-  #print("Totals: ")
-  #print(prof.total_average())
-
 
 # Loop over epochs.
 lr = args.lr

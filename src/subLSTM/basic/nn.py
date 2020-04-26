@@ -27,7 +27,7 @@ class SubLSTMFunction(Function):
         X = non_vars[0]
         gate_weights = non_vars[1]
 
-        new_h, new_cell, forget_gate = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell)
+        new_h, new_cell, forget_gate = torch.ops.sublstm.forward(input, gate_weights, old_h, old_cell, X, weights, bias)
 
         ctx.varies = [X, gate_weights, old_h, old_cell, weights, new_cell, forget_gate]
 
@@ -315,16 +315,16 @@ class SubLSTM(nn.Module):
 
         timesteps = input.size(0)
 
-        """
-        outputs = [input[i] for i in range(timesteps)]
+        # If only one layer, skip all the complicated streaming stuff
+        if self.num_layers == 1:
+            outputs = []
 
-        for time in range(timesteps):
-            for l, layer in enumerate(self.all_layers):
-                #layer = self.all_layers[l]
+            for time in range(timesteps):
+                layer = self.all_layers[0]
 
                 #self.flatten_parameters()
 
-                out, c = layer(outputs[time], hx[l])
+                out, c = layer(input[time], hx[0])
 
                 #self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
                 #self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)
@@ -332,68 +332,66 @@ class SubLSTM(nn.Module):
                 if self.use_dropout:
                     out = self.dropout(out)
 
-                hx[l] = (out, c)
-                outputs[time] = out
+                hx[0] = (out, c)
+                outputs.append(out)
+        else:
+            # update this so that we add streams if we need to
+            if self.streams is None:
+                self.num_streams = min(timesteps, self.num_layers)
+                # always make use of the default stream
+                self.streams = [torch.cuda.Stream() for i in range(self.num_streams)]
 
-        """
+            # notice these are indexed oppositely so that the return values
+            # are most efficiently and easily done
+            outputGrid = [[None]*(timesteps) for i in range(self.num_layers)]
+            stateGrid = [[None]*(self.num_layers) for i in range(timesteps)]
 
-        # update this so that we add streams if we need to
-        if self.streams is None:
-            self.num_streams = min(timesteps, self.num_layers)
-            # always make use of the default stream
-            self.streams = [torch.cuda.Stream() for i in range(self.num_streams)]
+            diagStartL, diagStartT = 0, 0
 
-        # notice these are indexed oppositely so that the return values
-        # are most efficiently and easily done
-        outputGrid = [[None]*(timesteps) for i in range(self.num_layers)]
-        stateGrid = [[None]*(self.num_layers) for i in range(timesteps)]
+            while True:
+                torch.cuda.synchronize()
+                currentL = diagStartL
+                currentT = diagStartT
 
-        diagStartL, diagStartT = 0, 0
+                streamIndex = 0
 
-        while True:
+                while currentL < self.num_layers and currentT >= 0:
+                    currentStream = self.streams[streamIndex % self.num_streams]
+                    with torch.cuda.stream(currentStream):
+
+                        if currentL == 0:
+                            prevOutput = input[currentT]
+                        else:
+                            prevOutput = outputGrid[currentL-1][currentT]
+
+                        if currentT == 0:
+                            prevState = hx[currentL]
+                        else:
+                            prevState = stateGrid[currentT-1][currentL]
+
+                        out, c = self.all_layers[currentL](prevOutput, prevState)
+
+                        if self.use_dropout:
+                            out = self.dropout(out)
+
+                        stateGrid[currentT][currentL] = (out,c)
+                        outputGrid[currentL][currentT] = out
+
+                    currentL += 1
+                    currentT -= 1
+                    streamIndex += 1
+
+                if diagStartT != timesteps - 1: # moving across stage
+                    diagStartT += 1
+                elif diagStartL != self.num_layers - 1: # moving up stage
+                    diagStartL += 1
+                else: # on the last cell, so don't have any more to do
+                    break
+
             torch.cuda.synchronize()
-            currentL = diagStartL
-            currentT = diagStartT
 
-            streamIndex = 0
-
-            while currentL < self.num_layers and currentT >= 0:
-                currentStream = self.streams[streamIndex % self.num_streams]
-                with torch.cuda.stream(currentStream):
-
-                    if currentL == 0:
-                        prevOutput = input[currentT]
-                    else:
-                        prevOutput = outputGrid[currentL-1][currentT]
-
-                    if currentT == 0:
-                        prevState = hx[currentL]
-                    else:
-                        prevState = stateGrid[currentT-1][currentL]
-
-                    out, c = self.all_layers[currentL](prevOutput, prevState)
-
-                    if self.use_dropout:
-                        out = self.dropout(out)
-
-                    stateGrid[currentT][currentL] = (out,c)
-                    outputGrid[currentL][currentT] = out
-
-                currentL += 1
-                currentT -= 1
-                streamIndex += 1
-
-            if diagStartT != timesteps - 1: # moving across stage
-                diagStartT += 1
-            elif diagStartL != self.num_layers - 1: # moving up stage
-                diagStartL += 1
-            else: # on the last cell, so don't have any more to do
-                break
-
-        torch.cuda.synchronize()
-
-        hx = stateGrid[timesteps - 1]
-        outputs = outputGrid[self.num_layers - 1]
+            hx = stateGrid[timesteps - 1]
+            outputs = outputGrid[self.num_layers - 1]
 
         out = torch.stack(outputs)
 

@@ -20,20 +20,26 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor input,
     torch::Tensor gate_weights,
     torch::Tensor old_h,
-    torch::Tensor old_cell);
+    torch::Tensor old_cell,
+		torch::Tensor X,
+		torch::Tensor weightsT,
+		torch::Tensor bias);
 
 std::vector<torch::Tensor> forward_sublstm(
     torch::Tensor input,
     torch::Tensor gate_weights,
     torch::Tensor old_h,
-    torch::Tensor old_cell) {
+    torch::Tensor old_cell,
+		torch::Tensor X,
+		torch::Tensor weightsT,
+		torch::Tensor bias) {
 /**
   CHECK_INPUT(input);
   CHECK_INPUT(gate_weights);
   CHECK_INPUT(old_h);
   CHECK_INPUT(old_cell);
 **/
-  return forward_cuda(input, gate_weights, old_h, old_cell);
+  return forward_cuda(input, gate_weights, old_h, old_cell, X, weightsT, bias);
 }
 
 
@@ -82,8 +88,8 @@ std::cout << "gate_weights" << gate_weights.sizes() << std::endl; // 4,4, 350
 std::cout << "weights" << weights.sizes() << std::endl; // 1400, 352
 std::cout << "old_cell" << old_cell.sizes() << std::endl; // 4, 350
 **/
-  return
-    backward_cuda(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell);
+
+  return backward_cuda(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell);
 
 /**
   torch::Tensor d_new_cell = (grad_h * d_sigmoid(new_cell)) + (grad_cell);
@@ -141,7 +147,7 @@ class SubLSTMFunction: public torch::autograd::Function<SubLSTMFunction> {
     auto X = non_vars[0];
     auto gate_weights = non_vars[1];
 
-    auto output_list = forward_sublstm(input, gate_weights, old_h, old_cell);
+    auto output_list = forward_sublstm(input, gate_weights, old_h, old_cell, X, weights, bias);
 
     auto new_h = output_list[0];
     auto new_cell = output_list[1];
