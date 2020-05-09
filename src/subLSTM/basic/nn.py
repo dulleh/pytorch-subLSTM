@@ -24,8 +24,32 @@ torch.ops.load_library(path_to_sublstm_cuda_so)
 class SubLSTMFunction(Function):
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
+        outputs = torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 128, 1)
+        new_h, new_cell, forget_gate, gate_weights, X = outputs
 
-        new_h, new_cell, forget_gate, gate_weights, X = torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias)
+        # """
+        # # Time overheads
+        # with torch.no_grad():
+        #     with torch.autograd.profiler.record_function("FORWARD_EXTRAS"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 32, 2)
+        # """
+        #
+        # """
+        # # Time kernel + overheads
+        # with torch.no_grad():
+        #     with torch.autograd.profiler.record_function("FORWARD32_C"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 32, 0)
+        #     with torch.autograd.profiler.record_function("FORWARD64_C"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 64, 0)
+        #     with torch.autograd.profiler.record_function("FORWARD128_C"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 128, 0)
+        #     with torch.autograd.profiler.record_function("FORWARD256_C"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 256, 0)
+        #     with torch.autograd.profiler.record_function("FORWARD512_C"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 512, 0)
+        #     with torch.autograd.profiler.record_function("FORWARD1024_C"):
+        #         torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 1024, 0)
+        # """
 
         ctx.varies = [X, gate_weights, old_h, old_cell, weights, new_cell, forget_gate]
 
@@ -36,6 +60,7 @@ class SubLSTMFunction(Function):
         #grad_h = grad_h.contiguous()
 
         saved_data = ctx.varies
+
         X = saved_data[0]
         gate_weights = saved_data[1]
         old_h = saved_data[2]
@@ -44,7 +69,32 @@ class SubLSTMFunction(Function):
         new_cell = saved_data[5]
         forget_gate = saved_data[6]
 
-        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell)
+        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 32, 1)
+
+        # Note: you cannot have actual string blocks like these without affecting run-time performance
+        # """
+        # Time overheads
+        # with torch.no_grad():
+        #     with torch.autograd.profiler.record_function("BACKWARD_EXTRAS"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 32, 2)
+        # """
+        #
+        # """
+        # Time kernel + overheads
+        # with torch.no_grad():
+        #     with torch.autograd.profiler.record_function("BACKWARD32_S"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 32, 0)
+        #     with torch.autograd.profiler.record_function("BACKWARD64_S"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 64, 0)
+        #     with torch.autograd.profiler.record_function("BACKWARD128_S"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 128, 0)
+        #     with torch.autograd.profiler.record_function("BACKWARD256_S"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 256, 0)
+        #     with torch.autograd.profiler.record_function("BACKWARD512_S"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 512, 0)
+        #     with torch.autograd.profiler.record_function("BACKWARD1024_S"):
+        #         torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 1024, 0)
+        # """
 
         # Fix memory leak.
         del ctx.varies
@@ -70,10 +120,10 @@ class SubLSTMCudaCell(nn.Module):
 
         # do this to have the same initialisation as non-cuda sublstm (for testing correctness)
         # ORDER is important!!
-        """
-        input_layer.reset_parameters()
-        recurrent_layer.reset_parameters()
-        """
+        # """
+        # input_layer.reset_parameters()
+        # recurrent_layer.reset_parameters()
+        # """
         input_layer.reset_parameters()
         recurrent_layer.reset_parameters()
 
@@ -240,24 +290,24 @@ class SubLSTM(nn.Module):
             layer = layer_type(layer_in_size, layer_out_size, bias)
             layers.append(layer)
 
-            """
-            #Tracing. But tracing doesn't work with a custom Function defined in Python.
-
-            INPUT = torch.rand(batch_size, layer_in_size).cuda() if not batch_first else torch.rand(layer_in_size, batch_size).cuda()
-            OLD_H = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
-            OLD_CELL = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
-            STATE = (OLD_H, OLD_CELL)
-            traced_layer = torch.jit.trace(layer, (INPUT,STATE))
-            layers.append(traced_layer)
-            """
-            """
-            #Scripting.
-            with torch.jit.optimized_execution(True):
-                torch.backends.cudnn.benchmark = True
-                traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias)).cuda()
-            print(traced_layer.code)
-            layers.append(traced_layer)
-            """
+            # """
+            # #Tracing. But tracing doesn't work with a custom Function defined in Python.
+            #
+            # INPUT = torch.rand(batch_size, layer_in_size).cuda() if not batch_first else torch.rand(layer_in_size, batch_size).cuda()
+            # OLD_H = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
+            # OLD_CELL = torch.rand(batch_size, hidden_size).cuda() if not batch_first else torch.rand(hidden_size, batch_size).cuda()
+            # STATE = (OLD_H, OLD_CELL)
+            # traced_layer = torch.jit.trace(layer, (INPUT,STATE))
+            # layers.append(traced_layer)
+            # """
+            # """
+            # #Scripting.
+            # with torch.jit.optimized_execution(True):
+            #     torch.backends.cudnn.benchmark = True
+            #     traced_layer = torch.jit.script(layer_type(layer_in_size, layer_out_size, bias)).cuda()
+            # print(traced_layer.code)
+            # layers.append(traced_layer)
+            # """
 
         self.all_layers = nn.ModuleList(layers)
 
@@ -348,6 +398,7 @@ class SubLSTM(nn.Module):
 
             while True:
                 torch.cuda.synchronize()
+
                 currentL = diagStartL
                 currentT = diagStartT
 
@@ -387,7 +438,6 @@ class SubLSTM(nn.Module):
                     break
 
             torch.cuda.synchronize()
-
             hx = stateGrid[timesteps - 1]
             outputs = outputGrid[self.num_layers - 1]
 

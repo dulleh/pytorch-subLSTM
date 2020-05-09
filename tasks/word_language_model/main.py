@@ -97,12 +97,12 @@ eval_batch_size = 10
 ntokens = len(corpus.dictionary)
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, args.batch_size)
 if args.model == 'subLSTMCuda':
-    """
-    with torch.jit.optimized_execution(True):
-        torch.backends.cudnn.benchmark = True
-        model = torch.jit.script(model)
-    print(model.rnn.code)
-    """
+    # """
+    # with torch.jit.optimized_execution(True):
+    #     torch.backends.cudnn.benchmark = True
+    #     model = torch.jit.script(model)
+    # print(model.rnn.code)
+    # """
 if args.cuda:
   model.cuda()
 
@@ -195,13 +195,11 @@ def train():
     hidden = detach_hidden_state(hidden)
 
     # forward
-    #with torch.autograd.profiler.record_function("label-FORWARD"):
     output, hidden = model(data, hidden)
 
     #print("output shape ", output.shape, " targets shape ", targets.shape)
     loss = criterion(output.reshape(-1, ntokens), targets)
 
-    #with torch.autograd.profiler.record_function("label-BACKWARD"):
     loss.backward()
 
     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
@@ -211,17 +209,17 @@ def train():
     total_loss += loss.data
 
     #break
-    """
-    if batch % args.log_interval == 0 and batch > 0:
-      cur_loss = total_loss.data[0] / args.log_interval
-      elapsed = time.time() - start_time
-      print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.6f} | ms/batch {:5.2f} | '
-          'loss {:5.2f} | ppl {:8.2f}'.format(
-        epoch, batch, len(train_data) // args.bptt, lr,
-        elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-      total_loss = torch.zeros(1).cuda()
-      start_time = time.time()
-    """
+    # """
+    # if batch % args.log_interval == 0 and batch > 0:
+    #   cur_loss = total_loss.data[0] / args.log_interval
+    #   elapsed = time.time() - start_time
+    #   print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.6f} | ms/batch {:5.2f} | '
+    #       'loss {:5.2f} | ppl {:8.2f}'.format(
+    #     epoch, batch, len(train_data) // args.bptt, lr,
+    #     elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+    #   total_loss = torch.zeros(1).cuda()
+    #   start_time = time.time()
+    # """
   #print("Averages: ")
   #print(prof.key_averages().table(sort_by="cuda_time_total"))
 
@@ -235,51 +233,60 @@ try:
       corpus.valid = corpus.valid.cuda()
   val_data = batchify(corpus.valid, eval_batch_size)
 
+  sumTime = 0;
+
   for epoch in range(1, args.epochs+1):
     epoch_start_time = time.time()
     train()
     val_loss = evaluate(val_data)
     print('-' * 89)
+    elapsedTime = time.time() - epoch_start_time
+
     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-        'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+        'valid ppl {:8.2f}'.format(epoch, elapsedTime,
                        val_loss, math.exp(val_loss)))
+
     print('-' * 89)
+    sumTime += elapsedTime
     # Save the model if the validation loss is the best we've seen so far.
     if not best_val_loss or val_loss < best_val_loss:
-      """
-      if args.model == 'subLSTMCuda':
-          #model.save(args.save)
-          with open(args.save, 'wb') as f:
-            torch.save(model, f)
-      else:
-          with open(args.save, 'wb') as f:
-            torch.save(model, f)
-      """
+      # """
+      # if args.model == 'subLSTMCuda':
+      #     #model.save(args.save)
+      #     with open(args.save, 'wb') as f:
+      #       torch.save(model, f)
+      # else:
+      #     with open(args.save, 'wb') as f:
+      #       torch.save(model, f)
+      # """
       best_val_loss = val_loss
     else:
       # Anneal the learning rate if no improvement has been seen in the validation dataset.
       lr /= 4.0
+  print("total time: ", sumTime)
+
 except KeyboardInterrupt:
   print('-' * 89)
   print('Exiting from training early')
 
-"""
-# Load the best saved model.
-if args.model == 'subLSTMCuda':
-    #torch.jit.load(args.save)
-    with open(args.save, 'rb') as f:
-      model = torch.load(f)
-else:
-    with open(args.save, 'rb') as f:
-      model = torch.load(f)
-"""
-
-# Run on test data.
-if args.cuda:
-    corpus.test = corpus.test.cuda()
-test_data = batchify(corpus.test, eval_batch_size)
-test_loss = evaluate(test_data)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
-  test_loss, math.exp(test_loss)))
-print('=' * 89)
+# """
+# # Load the best saved model.
+# if args.model == 'subLSTMCuda':
+#     #torch.jit.load(args.save)
+#     with open(args.save, 'rb') as f:
+#       model = torch.load(f)
+# else:
+#     with open(args.save, 'rb') as f:
+#       model = torch.load(f)
+#
+#
+# # Run on test data.
+# if args.cuda:
+#     corpus.test = corpus.test.cuda()
+# test_data = batchify(corpus.test, eval_batch_size)
+# test_loss = evaluate(test_data)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
+#   test_loss, math.exp(test_loss)))
+# print('=' * 89)
+# """

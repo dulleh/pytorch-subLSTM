@@ -21,21 +21,27 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_h,
     torch::Tensor old_cell,
 		torch::Tensor weightsT,
-		torch::Tensor bias);
+		torch::Tensor bias,
+    int64_t threads,
+    int64_t ONE_TO_MM
+  );
 
 std::vector<torch::Tensor> forward_sublstm(
     torch::Tensor input,
     torch::Tensor old_h,
     torch::Tensor old_cell,
 		torch::Tensor weightsT,
-		torch::Tensor bias) {
+		torch::Tensor bias,
+    int64_t threads,
+    int64_t ONE_TO_MM
+  ) {
 /**
   CHECK_INPUT(input);
   CHECK_INPUT(gate_weights);
   CHECK_INPUT(old_h);
   CHECK_INPUT(old_cell);
 **/
-  return forward_cuda(input, old_h, old_cell, weightsT, bias);
+  return forward_cuda(input, old_h, old_cell, weightsT, bias, threads, ONE_TO_MM);
 }
 
 
@@ -47,7 +53,10 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor X,
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
-    torch::Tensor old_cell);
+    torch::Tensor old_cell,
+    int64_t threads,
+    int64_t ONE_TO_MM
+  );
 
 std::vector<torch::Tensor> backward_sublstm(
     torch::Tensor grad_h,
@@ -57,9 +66,12 @@ std::vector<torch::Tensor> backward_sublstm(
     torch::Tensor X,
     torch::Tensor gate_weights, // gate outputs, pre-activation
     torch::Tensor weights, // actual weights in the gates
-    torch::Tensor old_cell) {
+    torch::Tensor old_cell,
+    int64_t threads,
+    int64_t ONE_TO_MM
+  ) {
 
-      return backward_cuda(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell);
+      return backward_cuda(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, threads, ONE_TO_MM);
 
 /**  CHECK_INPUT(grad_h);
   CHECK_INPUT(grad_cell);
@@ -140,7 +152,7 @@ class SubLSTMFunction: public torch::autograd::Function<SubLSTMFunction> {
       torch::Tensor bias,
       torch::Tensor old_h,
       torch::Tensor old_cell) {
-    auto output_list = forward_sublstm(input, old_h, old_cell, weights, bias);
+    auto output_list = forward_sublstm(input, old_h, old_cell, weights, bias, 128, 1);
 
     auto new_h = output_list[0];
     auto new_cell = output_list[1];
@@ -169,7 +181,7 @@ class SubLSTMFunction: public torch::autograd::Function<SubLSTMFunction> {
         auto new_cell = saved_vars[5];
         auto forget_gate = saved_vars[6];
 
-        auto outputs = backward_sublstm(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell);
+        auto outputs = backward_sublstm(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 32, 1);
 
         auto d_old_h = outputs[0];
         auto d_input = outputs[1];

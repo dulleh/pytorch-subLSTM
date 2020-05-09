@@ -16,7 +16,8 @@
 
 #include <stdio.h>
 
-namespace {
+namespace
+{
 
 	template <typename scalar_t>
 	__device__ __forceinline__ scalar_t sigmoid(scalar_t z) {
@@ -33,12 +34,13 @@ namespace {
 //	http://ecee.colorado.edu/~siewerts/extra/code/example_code_archive/a490dmis_code/CUDA/cuda_work/samples/0_Simple/matrixMul/matrixMul.cu
 // Modified to include a vector addition, index tensors and cope with arbitrary matrix sizes
 // Does C = AB + beta with A,B,C rectangular matrices of appr. sizes, and beta a vector
-template <typename scalar_t, int BLOCK_SIZE>
-__global__ void mmAdd(
-	torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> C,
-	const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> A,
-	const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> B,
-	const torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> beta
+	template <typename scalar_t, int BLOCK_SIZE>
+	__global__ void mmAdd
+	(
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> C,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> A,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> B,
+		const torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> beta
 	)
 	{
 	  // Block index:
@@ -69,9 +71,7 @@ __global__ void mmAdd(
 		// C[by * BLOCK_SIZE + tRow][bx * BLOCK_SIZE + tCol]
 	  scalar_t Csub = 0;
 
- 	  // we save the last potential block as a special case rather than have it
-		// result in an extra condition every loop
-		while (aBeginCol < A.size(1))
+ 	  while (aBeginCol < A.size(1))
 		{
 			// Declaration of the shared memory arrays
       __shared__ scalar_t As[BLOCK_SIZE][BLOCK_SIZE];
@@ -160,10 +160,22 @@ __global__ void mmAdd(
 		}
 	}
 
+
 	template <typename scalar_t>
-	__global__ void new_forward_cuda_kernel(
-		const int batch_size,
-		const int state_size,
+	struct scalar_t4 {
+	  scalar_t input;
+		scalar_t output;
+		scalar_t forget;
+		scalar_t candidate;
+	};
+
+	/**
+	  * All tensors must be contiguous and row-major.
+		*/
+	template <typename scalar_t>
+	__global__ void new_forward_cuda_kernel
+	(
+		const int size,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> gate_weights,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_h,
@@ -173,32 +185,157 @@ __global__ void mmAdd(
 	{
 		const int output_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-		const int n = output_index / state_size;
-		const int c = output_index % state_size;
+	 // output indices
+	 // int n = output_index / state_size;
+	 // int c = output_index % state_size;
 
+		if (output_index < size){
+			 // vectorized load
+			scalar_t4<scalar_t> pre_activation = reinterpret_cast<scalar_t4<scalar_t>*>(gate_weights.data())[output_index];
+			// load the only other value required
+			scalar_t old_cell_val = old_cell.data()[output_index];
+
+			// apply gate activations
+			scalar_t ig = sigmoid(pre_activation.input);
+			scalar_t og = sigmoid(pre_activation.output);
+			scalar_t fg = sigmoid(pre_activation.forget);
+			scalar_t zg = sigmoid(pre_activation.candidate);
+			// new_cell calculation
+		 	scalar_t nc = (old_cell_val * fg) + (zg - ig);
+
+			// store outputs into global
+			forget_gate.data()[output_index] = fg;
+			new_cell.data()[output_index] = nc;
+			new_h.data()[output_index] = sigmoid(nc) - og;
+		}
+	}
+
+	template <typename scalar_t, int BLOCK_SIZE>
+	__global__ void fused_forward_cuda_kernel
+	(
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> C,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> A,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> B,
+		const torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> beta,
+		const int batch_size,
+		const int state_size,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_h,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_cell,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate
+	)
+	{
+	/**
+	** mmAdd with additonal shared storage for outputs
+	**/
+		// Block index:
+		// BLOCK_SIZE*bx gives first column in this block of C
+		// BLOCK_SIZE*by gives first row in this block of C
+		const int bx = blockIdx.x;
+		const int by = blockIdx.y;
+
+		// Thread index
+		int tRow = threadIdx.y;
+		int tCol = threadIdx.x;
+
+		// Index of the first element of the first sub-matrix of A
+		// processed by the block
+		//int aBegin = wA * BLOCK_SIZE * by;
+		int aBeginRow = by * BLOCK_SIZE;
+		int aBeginCol = 0;
+
+		// Index of the first sub-matrix of B processed by the block
+		//int bBegin = BLOCK_SIZE * bx;
+		int bBeginRow = 0;
+		int bBeginCol = bx * BLOCK_SIZE;
+
+		int n = aBeginRow + tRow;
+		int c = bBeginCol + tCol;
+
+		// Accumulated output for the C value at
+		// C[by * BLOCK_SIZE + tRow][bx * BLOCK_SIZE + tCol]
+		scalar_t Csub = 0;
+
+		// Declaration of the shared memory arrays
+		__shared__ scalar_t As[BLOCK_SIZE][BLOCK_SIZE];
+		__shared__ scalar_t Bs[BLOCK_SIZE][BLOCK_SIZE];
+
+		while (aBeginCol < A.size(1)) {
+
+			// Load the matrices from global to shared memory;
+			// each thread loads one element of each matrix
+			// NOTE: These do not correspond to the actual result indices
+			//As[ty][tx] = A[a + wA * ty + tx];
+			//Bs[ty][tx] = B[b + wB * ty + tx];
+			int aRow = aBeginRow + tRow;
+			int aCol = aBeginCol + tCol;
+			As[tRow][tCol] = (aRow < A.size(0) && aCol < A.size(1)) ? A[aRow][aCol] : scalar_t(); // 0
+			int bRow = bBeginRow + tRow;
+			int bCol = bBeginCol + tCol;
+			Bs[tRow][tCol] = (bRow < B.size(0) && bCol < B.size(1)) ? B[bRow][bCol] : scalar_t();
+
+			// Synchronize to make sure the matrices are loaded
+			__syncthreads();
+
+			// Multiply the two sub-matrices together
+	#pragma unroll
+			for (int k = 0; k < BLOCK_SIZE; ++k)
+			{
+					Csub += As[tRow][k] * Bs[k][tCol];
+			}
+
+			aBeginCol += BLOCK_SIZE;
+			bBeginRow += BLOCK_SIZE;
+			// Synchronize to make sure that the preceding
+			// computation is done before loading two new
+			// sub-matrices of A and B in the next iteration
+			__syncthreads();
+		}
+
+		// assumes block are square with width BLOCK_SIZE
+
+		if (n < C.size(0) && c < C.size(1)) {
+			// Write the block sub-matrix to global mem. each thread writes one element
+			// beta should already get cached?
+			//int c = wB * BLOCK_SIZE * by + BLOCK_SIZE * bx;
+			//C[c + wB * ty + tx] = Csub;
+			Csub += beta[c];
+			C[n][c] = Csub;
+
+			// Repurpose As to be used as a shared memory
+			As[tRow][tCol] = sigmoid(Csub);
+		}
+
+	// sync threads to make sure all activation values calculated
+	__syncthreads();
+
+	// reduce by 4 threads
+	if (tCol % 4 == 0) {
+		// Also requires that we reinterpret c as the output column
+		c = c / 4;
+		/**
+		 * new_forward_cuda_kernel
+		 **/
 		if (n < batch_size && c < state_size){
-			const int fourC = 4 * c;
 			// input_gate
-			const scalar_t ig = sigmoid(gate_weights[n][fourC]);
-
+			scalar_t ig = As[tRow][tCol];
 			// output_gate
-			const scalar_t og = sigmoid(gate_weights[n][fourC +1]);
-
+			scalar_t og = As[tRow][tCol +1];
 			// forget_gate
-			const scalar_t fg = sigmoid(gate_weights[n][fourC +2]);
-			forget_gate[n][c] = fg;
-
+			scalar_t fg = As[tRow][tCol +2];
 			// candidate_cell
-			const scalar_t zg = sigmoid(gate_weights[n][fourC +3]);
+			scalar_t zg = As[tRow][tCol +3];
 
+			// OUTPUTS
+			forget_gate[n][c] = fg;
 			// new_cell
-			const scalar_t nc = (old_cell[n][c] * fg) + (zg - ig);
+			scalar_t nc = (old_cell[n][c] * fg) + (zg - ig);
 			new_cell[n][c] = nc;
-
 			// new_h
 			new_h[n][c] = sigmoid(nc) - og;
 		}
 	}
+}
 
 	template <typename scalar_t>
 	__global__ void backward_cuda_kernel
@@ -214,7 +351,7 @@ __global__ void mmAdd(
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates,
 		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_bias)
-		{
+	{
 	  // batch index
 	  const int n = blockIdx.y;
 	  // column index ie output state index
@@ -223,8 +360,8 @@ __global__ void mmAdd(
 			// Calculate column indices
 			const int igC = c;
 			const int ogC = igC + state_size;
-			const int zgC = ogC + state_size;
-			const int fgC = zgC + state_size;
+			const int fgC = ogC + state_size;
+			const int zgC = fgC + state_size;
 
 			const scalar_t d_new_cell = (grad_h[n][c] * d_sigmoid(new_cell[n][c])) + grad_cell[n][c];
 			d_old_cell[n][c] = d_new_cell * forget_gate[n][c];
@@ -246,13 +383,73 @@ __global__ void mmAdd(
 			// 				- can't just switch block/thread direction as we lose memory contiguity
 			atomicAdd(&d_bias[igC], dig);
 			atomicAdd(&d_bias[ogC], dog);
-			atomicAdd(&d_bias[zgC], dzg);
 			atomicAdd(&d_bias[fgC], dfg);
+			atomicAdd(&d_bias[zgC], dzg);
 	  }
 	}
 
 	template <typename scalar_t>
 	__global__ void new_backward_cuda_kernel(
+		const int batch_size,
+		const int state_size,
+		const int size,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> grad_h,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_cell,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> grad_cell,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> gate_weights,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_cell,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates,
+		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_bias
+	)
+	{
+		const int output_index = blockIdx.x * blockDim.x + threadIdx.x;
+
+		const int n = output_index / state_size;
+		const int c = output_index % state_size;
+
+		//if (n < batch_size && c < state_size) {
+		if (output_index < size) {
+			// vectorized load
+			scalar_t4<scalar_t> gate_vals = reinterpret_cast<scalar_t4<scalar_t>*>(gate_weights.data())[output_index];
+			// load other values too
+			scalar_t grad_h_val = grad_h[n][c];
+			scalar_t grad_cell_val = grad_cell[n][c];
+			scalar_t new_cell_val = new_cell[n][c];
+			scalar_t old_cell_val = old_cell[n][c];
+			scalar_t forget_gate_val = forget_gate[n][c];
+
+			scalar_t d_new_cell = (grad_h_val * d_sigmoid(new_cell_val)) + grad_cell_val;
+			// d_input_gate pre-activation
+			gate_vals.input = -d_new_cell * d_sigmoid(gate_vals.input);
+			// d_output_gate pre-activation
+			gate_vals.output = -grad_h_val * d_sigmoid(gate_vals.output);
+			// d_forget_gate pre-activation
+			gate_vals.forget = (d_new_cell * old_cell_val) * d_sigmoid(gate_vals.forget);
+			// d_candidate_cell pre-activation
+			gate_vals.candidate = d_new_cell * d_sigmoid(gate_vals.candidate);
+
+			// write outputs to global
+			d_old_cell[n][c] = d_new_cell * forget_gate_val;
+			// vectorized store to d_gates
+			reinterpret_cast<scalar_t4<scalar_t>*>(d_gates.data())[output_index] = gate_vals;
+			// d_bias calculation and store
+			// TODO: replace 4 atomicAdds with 1 some how?
+			atomicAdd(&d_bias[4*c], gate_vals.input);
+			atomicAdd(&d_bias[4*c + 1], gate_vals.output);
+			atomicAdd(&d_bias[4*c + 2], gate_vals.forget);
+			atomicAdd(&d_bias[4*c + 3], gate_vals.candidate);
+		}
+	}
+
+
+	// BLOCK_SIZEX is the number of COLUMNS in a block
+	// BLOCK_SIZEY is the number of ROWS in a block
+	// both are required to be the same as block dimensions
+	// (we just need them at compile time)
+	template <typename scalar_t, int BLOCK_SIZEX, int BLOCK_SIZEY>
+	__global__ void fused_backward_cuda_kernel(
 		const int batch_size,
 		const int state_size,
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> grad_h,
@@ -263,44 +460,135 @@ __global__ void mmAdd(
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates,
-		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_bias)
-		{
-		const int output_index = blockIdx.x * blockDim.x + threadIdx.x;
+		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_bias,
+		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> A, // X.t()
+		// B is calculated in the kernel - it is d_gates
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> C // d_weights
+	)
+	{
+		// Block index:
+		// BLOCK_SIZEX*bx gives first column in this block of C
+		// BLOCK_SIZEY*by gives first row in this block of C
+		const int bx = blockIdx.x;
+		const int by = blockIdx.y;
 
-		const int n = output_index / state_size;
-		const int c = output_index % state_size;
+		// Thread index
+		const int tCol = threadIdx.x;
+		const int tRow = threadIdx.y;
 
-		if (n < batch_size && c < state_size) {
-			// Calculate column indices
-			const int igC = 4*c;
-			const int ogC = igC + 1;
-			const int fgC = igC + 2;
-			const int zgC = igC + 3;
+		__shared__ scalar_t Bs[BLOCK_SIZEY][BLOCK_SIZEX];
 
-			const scalar_t d_new_cell = (grad_h[n][c] * d_sigmoid(new_cell[n][c])) + grad_cell[n][c];
-			d_old_cell[n][c] = d_new_cell * forget_gate[n][c];
-			// d_input_gate pre-activation
-			const scalar_t dig = -d_new_cell * d_sigmoid(gate_weights[n][igC]);
-			d_gates[n][igC] = dig;
-			// d_output_gate  pre-activation
-			const scalar_t dog = -grad_h[n][c] * d_sigmoid(gate_weights[n][ogC]);
-			d_gates[n][ogC] = dog;
-			// d_forget_gate pre-activation
-			const scalar_t dfg = (d_new_cell * old_cell[n][c]) * d_sigmoid(gate_weights[n][fgC]);
-			d_gates[n][fgC] = dfg;
-			// d_candidate_cell pre-activation
-			const scalar_t dzg = d_new_cell * d_sigmoid(gate_weights[n][zgC]);
-			d_gates[n][zgC] = dzg;
+		int c = bx * BLOCK_SIZEX + tCol;
 
-			// d_bias calculation
-			// TODO: replace 4 atomicAdds with 1 some how?
-			// 				- can't just switch block/thread direction as we lose memory contiguity
-			atomicAdd(&d_bias[igC], dig);
-			atomicAdd(&d_bias[ogC], dog);
-			atomicAdd(&d_bias[zgC], dzg);
-			atomicAdd(&d_bias[fgC], dfg);
+		const bool withinDGates = c < d_gates.size(1) && tRow < d_gates.size(0);
+		// Store the d_sigmoid results in shared memory (will be overwritten)
+		if (withinDGates) {
+			Bs[tRow][tCol] = d_sigmoid(gate_weights[tRow][tCol]);
+		} else {
+			// TODO: use vectorized stores for this and for the rest of pointwise stuff
+			// https://devblogs.nvidia.com/cuda-pro-tip-increase-performance-with-vectorized-memory-access/
+			Bs[tRow][tCol] = scalar_t();
 		}
+		__syncthreads();
+		// only 1 in four threads does this part
+		// to reduce thread divergence/number of __syncthreads() calls (simplifies thread scheduling)
+		if (withinDGates && tCol % 4 == 0)
+		{
+			// Calculate column indices
+			const int stateC = c / 4;
+			const int igC = c;
+			const int ogC = c + 1;
+			const int fgC = c + 2;
+			const int zgC = c + 3;
+
+			const scalar_t d_new_cell = (grad_h[tRow][stateC] * d_sigmoid(new_cell[tRow][stateC]))
+													+ grad_cell[tRow][stateC];
+
+			// d_input_gate pre-activation
+			const scalar_t dig = -d_new_cell * Bs[tRow][tCol];
+			// d_output_gate  pre-activation
+			const scalar_t dog = -grad_h[tRow][stateC] * Bs[tRow][tCol+1];
+			// d_forget_gate pre-activation
+			const scalar_t dfg = (d_new_cell * old_cell[tRow][stateC]) * Bs[tRow][tCol+2];
+			// d_candidate_cell pre-activation
+			const scalar_t dzg = d_new_cell * Bs[tRow][tCol+3];
+
+			// Store outputs in shared memory for later
+			Bs[tRow][tCol] = dig;
+			Bs[tRow][tCol+1] = dog;
+			Bs[tRow][tCol+2] = dfg;
+			Bs[tRow][tCol+3] = dzg;
+
+			// Only the first row of blocks needs to store the results into global
+			if (by == 0) {
+				d_old_cell[tRow][stateC] = d_new_cell * forget_gate[tRow][stateC];
+
+				d_gates[tRow][igC] = dig;
+				d_gates[tRow][ogC] = dog;
+				d_gates[tRow][fgC] = dfg;
+				d_gates[tRow][zgC] = dzg;
+
+				// d_bias calculation
+				atomicAdd(&d_bias[igC], dig);
+				atomicAdd(&d_bias[ogC], dog);
+				atomicAdd(&d_bias[zgC], dzg);
+				atomicAdd(&d_bias[fgC], dfg);
+			}
+		}
+
+		// Make sure everything is done
+		__syncthreads();
+
+/** from mmAdd but modified a fair bit:
+  * - Bs is now fixed and filled by the above code
+  * - As is larger - (BLOCK_SIZEY, BLOCK_SIZEY)
+	* - first loop As is filled BLOCK_SIZEX x BLOCK_SIZEY (~256) elements at a time
+  * - second loop every thread does its dot product and puts the result into global
+  */
+
+	// Declaration of the shared memory arrays
+	__shared__ scalar_t As[BLOCK_SIZEY][BLOCK_SIZEY];
+
+	  // Index of the first element of the first sub-matrix of A
+		// processed by the block
+	  int aBeginRow = by * BLOCK_SIZEY;
+
+		int n = aBeginRow + tRow;
+
+		// Load all of A in blocks of 256
+ 	  for (int firstRowInBatch = 0; firstRowInBatch < BLOCK_SIZEY; firstRowInBatch += BLOCK_SIZEX)
+		{
+      // Load the matrices from global to shared memory; each thread loads one element
+			// NOTE: cols/rows that threads correspond to (in C) are flipped for this load
+			//       but As is still filler row major
+			int asRow = firstRowInBatch + tCol;
+			int aRow = aBeginRow + asRow;
+			int aCol = tRow;
+			As[asRow][aCol] = (aRow < A.size(0) && aCol < A.size(1)) ?
+																					A[aRow][aCol] : scalar_t(); // 0
+		}
+
+    // Synchronize to make sure the matrices are loaded
+    __syncthreads();
+
+	  // Accumulated output for the C value at
+		// C[by * BLOCK_SIZEY + tRow][bx * BLOCK_SIZEX + tCol]
+	  scalar_t Csub = 0;
+
+    // Multiply the two sub-matrices together
+#pragma unroll
+    for (int k = 0; k < BLOCK_SIZEY; ++k)
+    {
+        Csub += As[tRow][k] * Bs[k][tCol];
+    }
+
+		if (n < C.size(0) && c < C.size(1)) {
+			C[n][c] = Csub;
+		}
+
+
 	}
+
 
 }
 
@@ -309,7 +597,9 @@ std::vector<torch::Tensor> forward_cuda(
 	torch::Tensor old_h,
 	torch::Tensor old_cell,
 	torch::Tensor weightsT,
-	torch::Tensor bias
+	torch::Tensor bias,
+	int64_t threads,
+	int64_t ONE_TO_MM
 )
 {
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
@@ -321,11 +611,24 @@ std::vector<torch::Tensor> forward_cuda(
 
 	auto X = torch::cat({old_h, input}, 1);
 
+	/**
 	auto gate_weights = torch::empty({X.size(0), weightsT.size(1)}, options);
+	if (ONE_TO_MM != 2) {
+		gate_weights = torch::addmm(bias, X, weightsT);
+	}
+	**/
+	auto gate_weights = torch::addmm(bias, X, weightsT);
+
+
+/**
+	auto gate_weights = torch::empty({X.size(0), weightsT.size(1)}, options);
+
 	int t = 16;
 	dim3 THREADS(t, t);
   dim3 GRID((gate_weights.size(1) + t - 1) / t,
 						(gate_weights.size(0) + t - 1) / t);
+
+
 	AT_DISPATCH_FLOATING_TYPES(X.scalar_type(), "custom_mmadd", ([&] {
 		mmAdd<scalar_t, 16><<<GRID, THREADS, 0, stream>>>(
 			gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
@@ -334,6 +637,7 @@ std::vector<torch::Tensor> forward_cuda(
 			bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>()
 		);
 	}));
+	**/
 
 	auto new_h = torch::empty({batch_size, state_size}, options);
   auto new_cell = torch::empty({batch_size, state_size}, options);
@@ -347,20 +651,60 @@ std::vector<torch::Tensor> forward_cuda(
   * Source: https://pytorch.org/tutorials/advanced/cpp_extension.html#writing-a-mixed-c-cuda-extension
   **/
 
-	const int threads = 256;
-	const dim3 blocks((state_size*batch_size + threads - 1) / threads, 1);
 
-	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "forward_cuda", ([&] {
-		new_forward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
+	//const int threads = 256;
+
+/**
+	//if (ONE_TO_MM == 0) {
+	  const dim3 blocks((state_size + threads - 1) / threads, batch_size);
+
+		AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "forward_cuda", ([&] {
+			forward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
+				batch_size,
+				state_size,
+				gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				forget_gate.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>()
+			);
+		}));
+	//}
+**/
+
+
+	//if (ONE_TO_MM == 0) {
+		const dim3 blocks((state_size*batch_size + threads - 1) / threads, 1);
+
+		AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "forward_cuda", ([&] {
+			new_forward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
+				batch_size*state_size,
+				gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				forget_gate.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>()
+			);
+		}));
+	//}
+
+
+/**
+	AT_DISPATCH_FLOATING_TYPES(X.scalar_type(), "custom_mmadd", ([&] {
+		fused_forward_cuda_kernel<scalar_t, 16><<<GRID, THREADS, 0, stream>>>(
+			gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			X.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			weightsT.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
 			batch_size,
 			state_size,
-			gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			new_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			forget_gate.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>()
 		);
 	}));
+**/
 
 	return {new_h, new_cell, forget_gate, gate_weights, X};
 }
@@ -373,8 +717,11 @@ std::vector<torch::Tensor> backward_cuda(
 		torch::Tensor X,
 		torch::Tensor gate_weights, // gate outputs, pre-activation
 		torch::Tensor weights, // actual weights in the gates
-		torch::Tensor old_cell)
-{
+		torch::Tensor old_cell,
+		int64_t threads,
+		int64_t ONE_TO_MM
+	)
+	{
 	cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
 	// Store no gradients
@@ -385,20 +732,44 @@ std::vector<torch::Tensor> backward_cuda(
   const auto batch_size = grad_h.size(0);
   const auto state_size = grad_h.size(1);
 
-	//auto gates = gate_weights.view({batch_size, 4, state_size});
+	auto X_t = X.t();
 
-	// auto d_new_cell  -- Don't need this as it is not returned, and used only within the kernel
 	auto d_old_cell = torch::empty({old_cell.size(0), old_cell.size(1)}, options);
 	auto d_gates = torch::empty({batch_size, 4*state_size}, options);
 	auto d_bias = torch::zeros({4*state_size}, options);
 
-	const int threads = 256;
+	//const int threads = 256;
+
+/**
+	//if (ONE_TO_MM != 2) {
+		const dim3 blocks((state_size + threads - 1) / threads, batch_size);
+
+		AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+			backward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
+				batch_size,
+				state_size,
+				grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>()
+			);
+		}));
+	//}
+**/
+
+
 	const dim3 blocks((state_size*batch_size + threads - 1) / threads, 1);
 
 	AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
 		new_backward_cuda_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
 			batch_size,
 			state_size,
+			batch_size*state_size,
 			grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
@@ -411,8 +782,181 @@ std::vector<torch::Tensor> backward_cuda(
 		);
 	}));
 
-	torch::Tensor d_weights = X.t().mm(d_gates);
-	torch::Tensor d_X = d_gates.mm(weights.t());
+
+/**
+	torch::Tensor d_weights = torch::empty({X_t.size(0), d_gates.size(1)}, options);
+
+	int BHeight = d_gates.size(0);
+
+	if (BHeight <= 2) {
+			dim3 THREADS(128, 2);
+			dim3 GRID((d_weights.size(1) + 128 - 1) / 2,
+								(d_weights.size(0) + 2 - 1) / 2);
+
+			AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+				fused_backward_cuda_kernel<scalar_t, 128, 2><<<GRID, THREADS,  0, stream>>>(
+					batch_size,
+					state_size,
+					grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+					X_t.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()
+				);
+			}));
+	} else if (BHeight <= 4) {
+			dim3 THREADS(64, 4);
+			dim3 GRID((d_weights.size(1) + 64 - 1) / 64,
+								(d_weights.size(0) + 4 - 1) / 4);
+
+			AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+				fused_backward_cuda_kernel<scalar_t, 64, 4><<<GRID, THREADS,  0, stream>>>(
+					batch_size,
+					state_size,
+					grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+					X_t.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+					d_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()
+				);
+			}));
+	} else if (BHeight <= 8) {
+				dim3 THREADS(32, 8);
+				dim3 GRID((d_weights.size(1) + 32 - 1) / 32,
+									(d_weights.size(0) + 8 - 1) / 8);
+
+				AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+					fused_backward_cuda_kernel<scalar_t, 32, 8><<<GRID, THREADS,  0, stream>>>(
+						batch_size,
+						state_size,
+						grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+						X_t.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()
+					);
+				}));
+
+	} else if (BHeight <= 16) {
+
+				dim3 THREADS(16, 16);
+				dim3 GRID((d_weights.size(1) + 16 - 1) / 16,
+									(d_weights.size(0) + 16 - 1) / 16);
+
+				AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+					fused_backward_cuda_kernel<scalar_t, 16, 16><<<GRID, THREADS,  0, stream>>>(
+						batch_size,
+						state_size,
+						grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+						X_t.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+						d_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()
+					);
+				}));
+
+	}  else if (BHeight <= 32) {
+
+		dim3 THREADS(8, 32);
+		dim3 GRID((d_weights.size(1) + 8 - 1) / 8,
+							(d_weights.size(0) + 32 - 1) / 32);
+
+		AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+			fused_backward_cuda_kernel<scalar_t, 8, 32><<<GRID, THREADS,  0, stream>>>(
+				batch_size,
+				state_size,
+				grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+				X_t.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()
+			);
+		}));
+
+	} else if (BHeight <= 64) {
+		dim3 THREADS(4, 64);
+		dim3 GRID((d_weights.size(1) + 4 - 1) / 4,
+							(d_weights.size(0) + 64 - 1) / 64);
+
+		AT_DISPATCH_FLOATING_TYPES(grad_h.scalar_type(), "backward_cuda", ([&] {
+			fused_backward_cuda_kernel<scalar_t, 4, 64><<<GRID, THREADS,  0, stream>>>(
+				batch_size,
+				state_size,
+				grad_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				grad_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				forget_gate.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				gate_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+				X_t.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+				d_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>()
+			);
+		}));
+
+	} else {
+		 //TODO: don't use fused kernel
+	}
+
+**/
+
+/**
+	cudaDeviceSynchronize();
+
+	std::cout << "d_gates" << d_gates.slice(1, 0, 10) << std::endl;
+	std::cout << "d_bias" << d_bias.slice(0, 0, 10) << std::endl;
+	std::cout << "d_old_cell" << d_old_cell.slice(1, 0, 10) << std::endl;
+
+	torch::Tensor oldd_weights = X_t.mm(d_gates);
+
+	cudaDeviceSynchronize();
+
+	std::cout << "OLD d_weights" << oldd_weights.slice(0, 25, 35).slice(1, 10, 20) << std::endl;
+	std::cout << "NEW d_weights" << d_weights.slice(0, 25, 35).slice(1, 10, 20) << std::endl;
+**/
+
+/**
+	torch::Tensor d_weights = torch::empty({X_t.size(0), d_gates.size(1)}, options);
+	torch::Tensor d_X = torch::empty({d_gates.size(0), weights.size(0)}, options);
+	if (ONE_TO_MM != 2) {
+		d_weights = X_t.mm(d_gates);
+		d_X = d_gates.mm(weights.t());
+	}
+**/
+	auto d_weights = X_t.mm(d_gates);
+	auto d_X = d_gates.mm(weights.t());
 
 	torch::Tensor d_old_h = d_X.slice(1, 0, state_size); // first state_size columns
 	torch::Tensor d_input = d_X.slice(1, state_size); // from column [state_size + 1] to the end
