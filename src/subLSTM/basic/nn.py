@@ -1,7 +1,6 @@
 import os
 import math
 from itertools import product
-from timeit import default_timer as timer
 
 import torch
 import torch.nn as nn
@@ -11,24 +10,19 @@ from torch.nn.modules.rnn import RNNCellBase
 # from torch.nn.utils.rnn import pack_padded_sequence as pack, pad_packed_sequence as pad
 from torch.autograd import Function
 from .functional import sublstm, fsublstm
-from torch.utils.cpp_extension import load
+
+
+path_to_sublstm_cuda_so = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'sublstm_cuda.so'))
+torch.ops.load_library(path_to_sublstm_cuda_so)
+
 
 ### Example from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm.py
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
-    path_to_this = os.path.abspath(os.path.dirname(__file__))
-    cpp_path = os.path.join(path_to_this, "sublstm.cpp")
-    cu_path = os.path.join(path_to_this, "sublstm.cu")
-
     @staticmethod
     def forward(ctx, input, weights, bias, old_h, old_cell):
-        forward_cpp = load(name="forward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-
-        outputs = forward_cpp.forward(input,
-                                      weights,
-                                      bias,
-                                      old_h,
-                                      old_cell)
+        outputs = torch.ops.sublstm.forward(input, weights, bias, old_h, old_cell)
+	
         new_h, new_cell = outputs[:2]
 
         ctx.varies = outputs[1:] + [weights] + [old_cell]
@@ -37,11 +31,10 @@ class SubLSTMFunction(Function):
 
     @staticmethod
     def backward(ctx, grad_h, grad_cell):
-        backward_cpp = load(name="backward", sources=[SubLSTMFunction.cpp_path, SubLSTMFunction.cu_path])
-
         grad_h = grad_h.contiguous()
+        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, *ctx.varies)
 
-        outputs = backward_cpp.backward(grad_h, grad_cell, *ctx.varies)
+        #outputs = backward_cpp.backward(grad_h, grad_cell, *ctx.varies)
         # Fix memory leak.
         del ctx.varies
 
@@ -162,18 +155,6 @@ class SubLSTM(nn.Module):
                     cell_type='vanilla', batch_first=False, dropout=0.0):
         super().__init__()
 
-        self.times = []
-        self.epochtimes = []
-        self.backwardtimes = []
-        self.epochbackwardtimes = []
-
-        self.totalforwardtime = 0
-
-        self.memoryrecords = []
-        self.cachedmemoryrecords = []
-        self.epochmemory = []
-        self.epochcachedmemory = []
-
         # Uncomment to get layers of different size. Disable for consistency with LSTM
         # if isinstance(hidden_size, list) and len(hidden_size) != num_layers:
         #     raise ValueError(
@@ -236,8 +217,9 @@ class SubLSTM(nn.Module):
                 pass
 
     def flatten_parameters(self):
-        for module in self.children():
-            module.flattenParameters()
+        pass
+        #for module in self.children():
+        #    module.flattenParameters()
 
     #@staticmethod
     def forward(self, input, hx=None):
@@ -271,21 +253,7 @@ class SubLSTM(nn.Module):
         for time, l in product(range(timesteps), range(self.num_layers)):
             layer = all_layers[l]
 
-
-            self.flatten_parameters()
-
-            starttime = timer()
-
             out, c = layer(outputs[time], hx[l])
-
-            lapsedtime = timer() - starttime
-            self.times.append(lapsedtime)
-
-
-            self.totalforwardtime += lapsedtime
-
-            self.memoryrecords.append(torch.cuda.memory_allocated() / 1024**2)
-            self.cachedmemoryrecords.append(torch.cuda.memory_cached() / 1024**2)
 
             if self.dropout:
                 out = self.dropout(out)
@@ -306,7 +274,7 @@ class SubLSTM(nn.Module):
 
     def _apply(self, fn):
         ret = super(SubLSTM, self)._apply(fn)
-        self.flatten_parameters()
+        #self.flatten_parameters()
         return ret
 
     def extra_repr(self):

@@ -10,6 +10,7 @@ import sys
 from shutil import rmtree
 
 from setuptools import find_packages, setup, Command
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 # Package meta-data.
 NAME = 'torch-sublstm'
@@ -117,8 +118,15 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy'
     ],
+    ext_modules=[
+        CUDAExtension('sublstm_cuda', [
+            os.path.join('src', 'subLSTM', 'basic','sublstm.cpp'),
+            os.path.join('src', 'subLSTM', 'basic','sublstm_kernel.cu'),
+        ]),
+    ],
     # $ setup.py publish support.
     cmdclass={
         'upload': UploadCommand,
+        'build_ext': BuildExtension.with_options(no_python_abi_suffix=True)
     },
 )

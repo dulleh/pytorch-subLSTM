@@ -3,10 +3,14 @@
   * and taking guidance from https://github.com/pytorch/extension-cpp/blob/master/cuda/lltm_cuda.cpp
   */
 //Includes ATen (tensor library), pybind11, and headers to manage the interactions between the two.
+#include <torch/all.h>
+#include <torch/python.h>
 #include <torch/extension.h>
+#include <torch/script.h>
 #include <iostream>
 #include <cassert>
-//namespace py = pybind11;
+#include <fstream>
+#include <cmath>
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -29,17 +33,17 @@ std::vector<torch::Tensor> forward_cuda(
     torch::Tensor old_h,
     torch::Tensor old_cell);
 
-std::vector<torch::Tensor> forward(
+std::vector<torch::Tensor> sublstm_forward(
     torch::Tensor input,
     torch::Tensor weights,
     torch::Tensor bias,
     torch::Tensor old_h,
     torch::Tensor old_cell) {
-  CHECK_INPUT(input);
-  CHECK_INPUT(weights);
-  CHECK_INPUT(bias);
-  CHECK_INPUT(old_h);
-  CHECK_INPUT(old_cell);
+  //CHECK_INPUT(input);
+  //CHECK_INPUT(weights);
+  //CHECK_INPUT(bias);
+  //CHECK_INPUT(old_h);
+  //CHECK_INPUT(old_cell);
 
   return forward_cuda(input, weights, bias, old_h, old_cell);
 }
@@ -112,7 +116,11 @@ std::vector<torch::Tensor> sublstm_backward(
 }
 
 
+static auto registry =
+  torch::RegisterOperators("sublstm::forward", &sublstm_forward)
+					.op("sublstm::backward", &sublstm_backward);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &forward, "forward pass (cuda)");
+  m.def("forward", &sublstm_forward, "forward pass (cuda)");
   m.def("backward", &sublstm_backward, "backward pass (cpp)");
 }
