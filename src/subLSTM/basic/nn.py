@@ -23,14 +23,14 @@ torch.ops.load_library(path_to_sublstm_cuda_so)
 ### See https://pytorch.org/docs/master/notes/extending.html for notes on autograd.Function
 class SubLSTMFunction(Function):
     @staticmethod
-    def forward(ctx, input, weights, bias, old_h, old_cell):
+    def forward(ctx, input, weights, bias, old_h, old_cell, new_forget_weights):
         #outputs = torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 128, 1)
 
-        outputs = torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 256, 1)
+        outputs = torch.ops.sublstm.forward(input, old_h, old_cell, weights, bias, 256, 1, new_forget_weights)
 
-        new_h, new_cell, forget_gate, gate_weights, X = outputs
+        new_h, new_cell, forget_gate, gate_weights, X, new_forget_weights, new_forget_gate = outputs
 
-        ctx.varies = [X, gate_weights, old_h, old_cell, weights, new_cell, forget_gate]
+        ctx.varies = [X, gate_weights, old_h, old_cell, weights, new_cell, forget_gate, new_forget_weights, new_forget_gate]
 
         return new_h, new_cell
 
@@ -47,8 +47,10 @@ class SubLSTMFunction(Function):
         weights = saved_data[4]
         new_cell = saved_data[5]
         forget_gate = saved_data[6]
+		new_forget_weights = saved_data[7]
+		new_forget_gate = saved_data[8]
 
-        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 32, 1)
+        outputs = torch.ops.sublstm.backward(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, 32, 1, new_forget_weights, new_forget_gate)
 
         # Note: you cannot have actual string blocks like these without affecting run-time performance
         # """
@@ -83,9 +85,10 @@ class SubLSTMFunction(Function):
         d_weights = outputs[2]
         d_bias = outputs[3]
         d_old_cell = outputs[4]
-        #d_gates = outputs[5]
-
-        return d_input, d_weights, d_bias, d_old_h, d_old_cell, None
+        d_new_forget_weights = outputs[5]
+		
+		# I don't know what the None at the end is for..
+        return d_input, d_weights, d_bias, d_old_h, d_old_cell, d_new_forget_weights, None
 
 class SubLSTMCudaCell(nn.Module):
     def __init__(self, input_size, state_size, bias=True):
@@ -114,6 +117,11 @@ class SubLSTMCudaCell(nn.Module):
         #self.weights = nn.Parameter(weightz)
         self.weightsT = nn.Parameter(weightz.t().contiguous())
         self.bias = nn.Parameter(input_bias) if bias else None
+		
+		#2021 TODO: I don't think these are the correct dimensions?
+		# initialise the new forget_gate. This may fuck up the consistency with the non-cuda intialisation
+		# so you may not be able to test for correctness without further hackery. Maybe don't set the initial values randomly when testing for correctness.
+		self.new_forget_weights = nn.Linear(input_size, state_size).weight.data.cuda()
 
         self.reset_parameters()
         self.flattenParameters()
@@ -145,7 +153,7 @@ class SubLSTMCudaCell(nn.Module):
         # If you don't want to use TorchScript, use this:
         #  It's also useful for debugging the C++ version of subLSTMFunction
         #  so long as you keep both up to date
-        return SubLSTMFunction.apply(input, self.weightsT, self.bias, old_h, old_cell)
+        return SubLSTMFunction.apply(input, self.weightsT, self.bias, old_h, old_cell, self.new_forget_weights)
 
 
 class SubLSTMCell(nn.Module):
@@ -365,7 +373,7 @@ class SubLSTM(nn.Module):
         #             out = self.dropout(out)
         #
         #         hx[0] = (out, c)
-        #         outputs[time] = out
+        #         outputs[time] = out	
         #
         #  """
         # else:

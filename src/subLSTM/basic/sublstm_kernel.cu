@@ -227,7 +227,9 @@ namespace
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_h,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_cell,
-		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> forget_gate,
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_forget_weights, 
+		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> new_forget_gate
 	)
 	{
 	/**
@@ -325,17 +327,22 @@ namespace
 
 			// apply gate activations
 			scalar_t ig = sigmoid(pre_activation.input);
-			scalar_t og = sigmoid(pre_activation.output);
-			scalar_t fg = sigmoid(pre_activation.forget);
+			//scalar_t og = sigmoid(pre_activation.output);
+			//scalar_t fg = sigmoid(pre_activation.forget);
+			scalar_t fg = sigmoid(new_forget_weights[output_index]);
+						
 			scalar_t zg = sigmoid(pre_activation.candidate);
 
 			// new_cell calculation
 		 	scalar_t nc = (old_cell_val * fg) + (zg - ig);
 
+
 			// store outputs into global
-			forget_gate.data()[output_index] = fg;
+			//forget_gate.data()[output_index] = fg;
+			new_forget_gate.data()[output_index] = fg;
 			new_cell.data()[output_index] = nc;
-			new_h.data()[output_index] = sigmoid(nc) - og;
+			//new_h.data()[output_index] = sigmoid(nc) - og;
+			new_h.data()[output_index] = sigmoid(nc);
 
 			// vectorized store
 			reinterpret_cast<scalar_t4<scalar_t>*>(C.data())[output_index] = pre_activation;
@@ -407,7 +414,9 @@ namespace
 		const torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_old_cell,
 		torch::PackedTensorAccessor32<scalar_t,2,torch::RestrictPtrTraits> d_gates,
-		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_bias
+		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_bias,
+		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> d_new_forget_weights,
+		torch::PackedTensorAccessor32<scalar_t,1,torch::RestrictPtrTraits> new_forget_weights
 	)
 	{
 		const int output_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -430,9 +439,13 @@ namespace
 			// d_input_gate pre-activation
 			gate_vals.input = -d_new_cell * d_sigmoid(gate_vals.input);
 			// d_output_gate pre-activation
-			gate_vals.output = -grad_h_val * d_sigmoid(gate_vals.output);
+			//gate_vals.output = -grad_h_val * d_sigmoid(gate_vals.output);
+			gate_vals.output = 0;
 			// d_forget_gate pre-activation
-			gate_vals.forget = (d_new_cell * old_cell_val) * d_sigmoid(gate_vals.forget);
+			//gate_vals.forget = (d_new_cell * old_cell_val) * d_sigmoid(gate_vals.forget);
+			gate_vals.forget = 0;
+			d_new_forget_weights[n][c] = (d_new_cell * old_cell_val) * d_sigmoid(new_forget_weights[n][c]);			
+			
 			// d_candidate_cell pre-activation
 			gate_vals.candidate = d_new_cell * d_sigmoid(gate_vals.candidate);
 
@@ -690,7 +703,8 @@ std::vector<torch::Tensor> forward_cuda
 	torch::Tensor weightsT,
 	torch::Tensor bias,
 	int64_t threads,
-	int64_t ONE_TO_MM
+	int64_t ONE_TO_MM,
+	torch::Tensor new_forget_weights
 )
 {
 	at::cuda::CUDAStream cudaStream = at::cuda::getCurrentCUDAStream();
@@ -725,8 +739,9 @@ std::vector<torch::Tensor> forward_cuda
 **/
 
 	auto new_h = torch::empty({batch_size, state_size}, options);
-  auto new_cell = torch::empty({batch_size, state_size}, options);
+    auto new_cell = torch::empty({batch_size, state_size}, options);
 	auto forget_gate = torch::empty({batch_size, state_size}, options);
+	auto new_forget_gate = torch::empty({batch_size, state_size}, options);
 
 /**
 	// Forward Point-wise with AoS memory layout
@@ -764,7 +779,9 @@ std::vector<torch::Tensor> forward_cuda
 				old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 				new_h.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 				new_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-				forget_gate.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>()
+				forget_gate.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+				new_forget_weights.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+				new_forget_gate.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>()
 			);
 		}));
 
@@ -792,7 +809,7 @@ std::vector<torch::Tensor> forward_cuda
 	}
 **/
 
-	return {new_h, new_cell, forget_gate, gate_weights, X};
+	return {new_h, new_cell, forget_gate, gate_weights, X, new_forget_weights, new_forget_gate};
 }
 
 std::vector<torch::Tensor> backward_cuda(
@@ -805,7 +822,9 @@ std::vector<torch::Tensor> backward_cuda(
 		torch::Tensor weights, // actual weights in the gates
 		torch::Tensor old_cell,
 		int64_t threads,
-		int64_t ONE_TO_MM
+		int64_t ONE_TO_MM,,
+		torch::Tensor new_forget_weights,
+		torch::Tensor new_forget_gate // #2021 as we have it now, these values are not actually used?
 	)
 	{
 	at::cuda::CUDAStream cudaStream = at::cuda::getCurrentCUDAStream();
@@ -822,6 +841,9 @@ std::vector<torch::Tensor> backward_cuda(
 	// no need for .contiguous
 	auto X_t = X.t();
 
+	// may be {state_size, batch_szie}
+	auto d_new_forget_weights = torch::empty({batch_size, state_size}, options);
+	
 	auto d_old_cell = torch::empty({old_cell.size(0), old_cell.size(1)}, options);
 	auto d_gates = torch::empty({batch_size, 4*state_size}, options);
 	auto d_bias = torch::zeros({4*state_size}, options);
@@ -841,7 +863,9 @@ std::vector<torch::Tensor> backward_cuda(
 			old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			d_old_cell.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 			d_gates.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
-			d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>()
+			d_bias.packed_accessor32<scalar_t,1,torch::RestrictPtrTraits>(),
+			d_new_forget_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
+			new_forget_weights.packed_accessor32<scalar_t,2,torch::RestrictPtrTraits>(),
 		);
 	}));
 
@@ -881,5 +905,5 @@ std::vector<torch::Tensor> backward_cuda(
 	torch::Tensor d_old_h = d_X.slice(1, 0, state_size); // first state_size columns
 	torch::Tensor d_input = d_X.slice(1, state_size); // from column [state_size + 1] to the end
 
-	return {d_old_h, d_input, d_weights, d_bias, d_old_cell};
+	return {d_old_h, d_input, d_weights, d_bias, d_old_cell, d_new_forget_weights};
 }

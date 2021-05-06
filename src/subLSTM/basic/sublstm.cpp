@@ -16,6 +16,13 @@
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
+
+// #2021
+// NOTE:
+// The .cu methods are declared here so you need to change the signatures of these
+// when you want to make changes to the definitions in .cu
+
+
 std::vector<torch::Tensor> forward_cuda(
     torch::Tensor input,
     torch::Tensor old_h,
@@ -23,7 +30,8 @@ std::vector<torch::Tensor> forward_cuda(
 		torch::Tensor weightsT,
 		torch::Tensor bias,
     int64_t threads,
-    int64_t ONE_TO_MM
+    int64_t ONE_TO_MM,
+		torch::Tensor new_forget_weights
   );
 
 std::vector<torch::Tensor> forward_sublstm(
@@ -33,7 +41,8 @@ std::vector<torch::Tensor> forward_sublstm(
 		torch::Tensor weightsT,
 		torch::Tensor bias,
     int64_t threads,
-    int64_t ONE_TO_MM
+    int64_t ONE_TO_MM,
+		torch::Tensor new_forget_weights
   ) {
 /**
   CHECK_INPUT(input);
@@ -41,7 +50,7 @@ std::vector<torch::Tensor> forward_sublstm(
   CHECK_INPUT(old_h);
   CHECK_INPUT(old_cell);
 **/
-  return forward_cuda(input, old_h, old_cell, weightsT, bias, threads, ONE_TO_MM);
+  return forward_cuda(input, old_h, old_cell, weightsT, bias, threads, ONE_TO_MM, new_forget_weights);
 }
 
 
@@ -55,7 +64,9 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor weights, // actual weights in the gates
     torch::Tensor old_cell,
     int64_t threads,
-    int64_t ONE_TO_MM
+    int64_t ONE_TO_MM,
+		torch::Tensor new_forget_weights,
+		torch::Tensor new_forget_gate
   );
 
 std::vector<torch::Tensor> backward_sublstm(
@@ -68,10 +79,12 @@ std::vector<torch::Tensor> backward_sublstm(
     torch::Tensor weights, // actual weights in the gates
     torch::Tensor old_cell,
     int64_t threads,
-    int64_t ONE_TO_MM
+    int64_t ONE_TO_MM,
+		torch::Tensor new_forget_weights,
+		torch::Tensor new_forget_gate
   ) {
 
-      return backward_cuda(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, threads, ONE_TO_MM);
+      return backward_cuda(grad_h, grad_cell, new_cell, forget_gate, X, gate_weights, weights, old_cell, threads, ONE_TO_MM, new_forget_weights, new_forget_gate);
 
 /**  CHECK_INPUT(grad_h);
   CHECK_INPUT(grad_cell);
@@ -143,6 +156,8 @@ std::cout << "old_cell" << old_cell.sizes() << std::endl; // 4, 350
 **/
 }
 
+
+/**
 class SubLSTMFunction: public torch::autograd::Function<SubLSTMFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -193,6 +208,7 @@ class SubLSTMFunction: public torch::autograd::Function<SubLSTMFunction> {
   }
 };
 
+
 torch::autograd::tensor_list sublstm_apply(
     torch::Tensor input,
     torch::Tensor weights,
@@ -202,6 +218,7 @@ torch::autograd::tensor_list sublstm_apply(
   ) {
   return SubLSTMFunction::apply(input, weights, bias, old_h, old_cell);
 }
+**/
 
 static auto registry =
   torch::RegisterOperators("sublstm::forward", &forward_sublstm)
